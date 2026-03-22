@@ -1,5 +1,5 @@
 import { BarChart3, ClipboardPen, LayoutDashboard, LibraryBig } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useMatch } from 'react-router-dom'
 
 import { routes } from '@/lib/constants/routes'
 import { cn } from '@/lib/utils/cn'
@@ -12,6 +12,16 @@ const links = [
 ]
 
 export function StudentShell() {
+  const isTakeAttemptRoute = useMatch(routes.attempts.take)
+
+  if (isTakeAttemptRoute) {
+    return (
+      <section className="min-w-0">
+        <Outlet />
+      </section>
+    )
+  }
+
   return (
     <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
       <aside className="h-fit rounded-2xl border bg-white p-3 shadow-sm">
