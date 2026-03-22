@@ -1,194 +1,93 @@
-import { useState } from 'react'
-import { useImportReview } from '@/features/imports/hooks'
-import type { DocumentImportItem } from '@/features/imports/types'
+import { useParams } from 'react-router-dom'
 
-export function AdminImportReviewPage({ importId, onBack }: { importId: string; onBack: () => void }) {
-  const review = useImportReview(importId)
-  const [activeItem, setActiveItem] = useState<DocumentImportItem | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [approving, setApproving] = useState(false)
+import { PageHeader } from '@/components/common/PageHeader'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { useApproveImport, useImportDetail, useUpdateImportItem } from '@/features/imports/hooks'
 
-  if (review.loading) return <div className="panel">Loading import review…</div>
-  if (review.error) return <div className="panel error-text">{review.error}</div>
-  if (!review.data) return <div className="panel">Import not found.</div>
+export function AdminImportReviewPage() {
+  const { importId = '' } = useParams()
+  const importQuery = useImportDetail(importId)
+  const updateItem = useUpdateImportItem(importId)
+  const approveImport = useApproveImport(importId)
 
-  const unresolvedCount = (review.data.items ?? []).filter((item) => !item.isApproved || ['ambiguous', 'paper_only', 'scheme_only'].includes(item.matchStatus)).length
+  if (importQuery.isLoading) {
+    return <Card><CardContent className="pt-6 text-sm text-slate-600">Loading import…</CardContent></Card>
+  }
 
-  return (
-    <div className="stack-lg">
-      <section className="row-between wrap-gap">
-        <div>
-          <h1>Review import #{review.data.id}</h1>
-          <p className="subtle-text">Source files: {review.data.questionPaperName} / {review.data.markSchemeName}</p>
-        </div>
-        <div className="button-row">
-          <button className="button button-secondary" onClick={onBack}>Back to imports</button>
-          <button
-            className="button"
-            disabled={approving || review.data.status === 'approved' || unresolvedCount > 0}
-            onClick={async () => {
-              setError(null)
-              setApproving(true)
-              try {
-                await review.approve()
-              } catch (err) {
-                setError((err as Error).message)
-              } finally {
-                setApproving(false)
-              }
-            }}
-          >
-            {review.data.status === 'approved' ? 'Import approved' : unresolvedCount > 0 ? `Resolve ${unresolvedCount} item(s)` : approving ? 'Approving…' : 'Approve import'}
-          </button>
-        </div>
-      </section>
+  if (!importQuery.data) {
+    return <Card><CardContent className="pt-6 text-sm text-slate-600">Import not found.</CardContent></Card>
+  }
 
-      <section className="panel stack-md">
-        <h2>Import metadata</h2>
-        <div className="meta-grid two-columns">
-          {Object.entries(review.data.metadata ?? {}).map(([key, value]) => (
-            <span key={key}><strong>{key}:</strong> {String(value ?? '—')}</span>
-          ))}
-        </div>
-        <h3>Review counts</h3>
-        <div className="meta-grid two-columns">
-          {Object.entries(review.data.summary ?? {}).map(([key, value]) => (
-            <span key={key}><strong>{key}:</strong> {value}</span>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel stack-md">
-        <h2>Import review table</h2>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Key</th>
-              <th>Question</th>
-              <th>Marks</th>
-              <th>Status</th>
-              <th>Approved</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(review.data.items ?? []).map((item) => (
-              <tr key={item.id}>
-                <td>{item.questionKey}</td>
-                <td>{item.questionText.slice(0, 120)}{item.questionText.length > 120 ? '…' : ''}</td>
-                <td>QP {item.questionPaperMarks ?? '—'} / MS {item.markSchemeMarks ?? '—'} / Final {item.resolvedMaxMarks ?? '—'}</td>
-                <td>{item.matchStatus}</td>
-                <td>{item.isApproved ? 'Yes' : 'No'}</td>
-                <td><button className="button button-secondary" onClick={() => setActiveItem(item)}>Edit</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      {error ? <div className="panel error-text">{error}</div> : null}
-
-      {activeItem ? (
-        <ImportEditor
-          item={activeItem}
-          saving={saving}
-          onClose={() => setActiveItem(null)}
-          onSave={async (nextItem) => {
-            setError(null)
-            setSaving(true)
-            try {
-              await review.updateItem(activeItem.id, nextItem)
-              setActiveItem(null)
-            } catch (err) {
-              setError((err as Error).message)
-            } finally {
-              setSaving(false)
-            }
-          }}
-        />
-      ) : null}
-    </div>
-  )
-}
-
-function ImportEditor({ item, onClose, onSave, saving }: { item: DocumentImportItem; onClose: () => void; onSave: (item: { questionKey: string; questionText: string; referenceAnswer: string; markingGuidelines: string; resolvedMaxMarks: number; matchStatus: DocumentImportItem['matchStatus']; adminNotes: string; isApproved: boolean }) => Promise<void>; saving: boolean }) {
-  const [questionKey, setQuestionKey] = useState(item.questionKey)
-  const [questionText, setQuestionText] = useState(item.questionText)
-  const [referenceAnswer, setReferenceAnswer] = useState(item.referenceAnswer ?? '')
-  const [markingGuidelines, setMarkingGuidelines] = useState(item.markingGuidelines ?? '')
-  const [resolvedMaxMarks, setResolvedMaxMarks] = useState(String(item.resolvedMaxMarks ?? item.questionPaperMarks ?? item.markSchemeMarks ?? 1))
-  const [matchStatus, setMatchStatus] = useState<DocumentImportItem['matchStatus']>(item.matchStatus)
-  const [adminNotes, setAdminNotes] = useState(item.adminNotes ?? '')
-  const [isApproved, setIsApproved] = useState(item.isApproved)
+  const documentImport = importQuery.data
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal-card stack-md">
-        <div className="row-between wrap-gap">
-          <h2>Edit import item</h2>
-          <button className="button button-secondary" onClick={onClose}>Close</button>
-        </div>
-        <label className="field">
-          <span>Question key</span>
-          <input value={questionKey} onChange={(event) => setQuestionKey(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>Question text</span>
-          <textarea value={questionText} onChange={(event) => setQuestionText(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>Reference answer</span>
-          <textarea value={referenceAnswer} onChange={(event) => setReferenceAnswer(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>Marking guidelines</span>
-          <textarea value={markingGuidelines} onChange={(event) => setMarkingGuidelines(event.target.value)} />
-        </label>
-        <div className="meta-grid two-columns">
-          <label className="field">
-            <span>Resolved max marks</span>
-            <input type="number" value={resolvedMaxMarks} onChange={(event) => setResolvedMaxMarks(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>Match status</span>
-            <select value={matchStatus} onChange={(event) => setMatchStatus(event.target.value as DocumentImportItem['matchStatus'])}>
-              <option value="matched">matched</option>
-              <option value="resolved">resolved</option>
-              <option value="ambiguous">ambiguous</option>
-              <option value="paper_only">paper_only</option>
-              <option value="scheme_only">scheme_only</option>
-            </select>
-          </label>
-        </div>
-        <label className="field">
-          <span>Admin notes</span>
-          <textarea value={adminNotes} onChange={(event) => setAdminNotes(event.target.value)} />
-        </label>
-        <label className="checkbox-field">
-          <input type="checkbox" checked={isApproved} onChange={(event) => setIsApproved(event.target.checked)} />
-          <span>Approved for final paper creation</span>
-        </label>
-        <div className="button-row">
-          <button className="button button-secondary" onClick={onClose}>Cancel</button>
-          <button
-            className="button"
-            disabled={saving}
-            onClick={() => onSave({
-              questionKey,
-              questionText,
-              referenceAnswer,
-              markingGuidelines,
-              resolvedMaxMarks: Number(resolvedMaxMarks),
-              matchStatus,
-              adminNotes,
-              isApproved,
-            })}
-          >
-            {saving ? 'Saving…' : 'Save item'}
-          </button>
-        </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Import review"
+        title={`Import #${documentImport.id}`}
+        description="This review page keeps metadata, item inspection, and approval controls together while leaving room for richer diffing and editor dialogs later."
+        actions={<Button disabled={approveImport.isPending || documentImport.status !== 'needs_review'} onClick={() => void approveImport.mutateAsync()}>{approveImport.isPending ? 'Approving…' : 'Approve import'}</Button>}
+      />
+
+      <div className="grid gap-4 md:grid-cols-4">
+        {Object.entries(documentImport.summary ?? {}).slice(0, 4).map(([key, value]) => (
+          <Card key={key}><CardContent className="pt-6 text-sm"><span className="font-medium capitalize">{key}:</span> {String(value)}</CardContent></Card>
+        ))}
       </div>
+
+      <Card>
+        <CardHeader>
+          <Badge className="w-fit bg-blue-50 text-blue-700">Status: {documentImport.status}</Badge>
+          <CardTitle>Detected metadata</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-2 text-sm text-slate-600 md:grid-cols-2">
+          {Object.entries(documentImport.metadata ?? {}).map(([key, value]) => (
+            <div key={key} className="rounded-xl border border-slate-200 p-3">
+              <p className="font-medium text-slate-900">{key}</p>
+              <p>{typeof value === 'object' ? JSON.stringify(value) : String(value ?? '—')}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Import items</CardTitle></CardHeader>
+        <CardContent className="grid gap-3">
+          {documentImport.items?.map((item) => (
+            <div key={item.id} className="grid gap-3 rounded-xl border border-slate-200 p-4 lg:grid-cols-[160px_minmax(0,1fr)_160px] lg:items-start">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-slate-900">{item.questionKey}</p>
+                <Badge className="bg-slate-100 text-slate-700">{item.matchStatus}</Badge>
+              </div>
+              <div className="space-y-3">
+                <Input defaultValue={item.questionText ?? ''} onBlur={(event) => {
+                  if (!item.questionText && !event.target.value) return
+                  void updateItem.mutateAsync({
+                    itemId: item.id,
+                    questionKey: item.questionKey,
+                    questionText: event.target.value,
+                    resolvedMaxMarks: item.resolvedMaxMarks ?? item.questionPaperMarks ?? item.markSchemeMarks ?? 0,
+                    matchStatus: item.matchStatus,
+                    referenceAnswer: item.referenceAnswer,
+                    markingGuidelines: item.markingGuidelines,
+                    adminNotes: item.adminNotes,
+                    isApproved: item.isApproved,
+                  })
+                }} />
+                <p className="text-xs text-slate-500">Question marks: {item.questionPaperMarks ?? '—'} · Scheme marks: {item.markSchemeMarks ?? '—'} · Resolved: {item.resolvedMaxMarks ?? '—'}</p>
+              </div>
+              <div className="space-y-2 text-xs text-slate-500">
+                <p>Question page: {item.questionPageNumber ?? '—'}</p>
+                <p>Scheme page: {item.markSchemePageNumber ?? '—'}</p>
+                <p>Approved: {item.isApproved ? 'Yes' : 'No'}</p>
+              </div>
+            </div>
+          )) ?? <p className="text-sm text-slate-600">No parsed items are available yet.</p>}
+        </CardContent>
+      </Card>
     </div>
   )
 }

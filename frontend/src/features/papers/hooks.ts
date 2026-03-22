@@ -1,92 +1,20 @@
-import { useEffect, useState } from 'react'
-import { fetchAttempt, fetchPapers, saveAttemptAnswers, startAttempt, submitAttempt } from './api'
-import type { PaperAttempt, PaperListItem } from './types'
+import { useQuery } from '@tanstack/react-query'
 
-export function usePapersCatalog() {
-  const [data, setData] = useState<PaperListItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+import type { CatalogSearchParams } from '@/features/catalog/types'
+import { papersApi } from '@/features/papers/api'
+import { queryKeys } from '@/lib/constants/queryKeys'
 
-  useEffect(() => {
-    let cancelled = false
-    fetchPapers()
-      .then((response) => {
-        if (!cancelled) setData(response)
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  return { data, loading, error }
+export function usePaperList(filters: CatalogSearchParams) {
+  return useQuery({
+    queryKey: queryKeys.papers.list(filters),
+    queryFn: () => papersApi.list(filters),
+  })
 }
 
-export function usePaperAttempt(attemptId: string) {
-  const [data, setData] = useState<PaperAttempt | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    fetchAttempt(attemptId)
-      .then((response) => {
-        if (!cancelled) setData(response)
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [attemptId])
-
-  return {
-    data,
-    loading,
-    error,
-    async saveAnswers(answers: Array<{ paper_question_id: number; student_answer: string }>) {
-      const response = await saveAttemptAnswers(Number(attemptId), answers)
-      setData(response)
-      return response
-    },
-    async submit() {
-      const response = await submitAttempt(Number(attemptId))
-      setData(response)
-      return response
-    },
-  }
-}
-
-export function useStartAttempt() {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  return {
-    loading,
-    error,
-    async start(paperId: string) {
-      setLoading(true)
-      setError(null)
-      try {
-        return await startAttempt(paperId)
-      } catch (err) {
-        setError((err as Error).message)
-        throw err
-      } finally {
-        setLoading(false)
-      }
-    },
-  }
+export function usePaperDetail(paperId: string) {
+  return useQuery({
+    queryKey: queryKeys.papers.detail(paperId),
+    queryFn: () => papersApi.detail(paperId),
+    enabled: Boolean(paperId),
+  })
 }

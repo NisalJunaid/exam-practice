@@ -1,73 +1,57 @@
-import { useEffect, useState } from 'react'
-import { approveImport, createImport, fetchImport, fetchImports, updateImportItem } from './api'
-import type { DocumentImport, DocumentImportItem } from './types'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-export function useImportsList() {
-  const [data, setData] = useState<DocumentImport[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+import { importsApi } from '@/features/imports/api'
+import { queryKeys } from '@/lib/constants/queryKeys'
 
-  const load = async () => {
-    setLoading(true)
-    try {
-      setData(await fetchImports())
-      setError(null)
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    void load()
-  }, [])
-
-  return {
-    data,
-    loading,
-    error,
-    async create(formData: FormData) {
-      const nextImport = await createImport(formData)
-      await load()
-      return nextImport
-    },
-  }
+export function useImports() {
+  return useQuery({
+    queryKey: queryKeys.admin.imports,
+    queryFn: importsApi.list,
+  })
 }
 
-export function useImportReview(importId: string) {
-  const [data, setData] = useState<DocumentImport | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const load = async () => {
-    setLoading(true)
-    try {
-      setData(await fetchImport(importId))
-      setError(null)
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    void load()
-  }, [importId])
-
-  return {
-    data,
-    loading,
-    error,
-    async updateItem(itemId: number, payload: Partial<DocumentImportItem> & { questionKey: string; questionText: string; resolvedMaxMarks: number; matchStatus: DocumentImportItem['matchStatus'] }) {
-      await updateImportItem(itemId, payload)
-      await load()
+export function useImportDetail(importId: string) {
+  return useQuery({
+    queryKey: queryKeys.admin.import(importId),
+    queryFn: () => importsApi.detail(importId),
+    enabled: Boolean(importId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return status === 'processing' || status === 'uploaded' ? 5000 : false
     },
-    async approve() {
-      const response = await approveImport(Number(importId))
-      await load()
-      return response
+  })
+}
+
+export function useCreateImport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: importsApi.create,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.imports })
     },
-  }
+  })
+}
+
+export function useUpdateImportItem(importId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ itemId, ...payload }: { itemId: string | number } & Parameters<typeof importsApi.updateItem>[1]) => importsApi.updateItem(itemId, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.import(importId) })
+    },
+  })
+}
+
+export function useApproveImport(importId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => importsApi.approve(importId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.import(importId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.papers })
+    },
+  })
 }

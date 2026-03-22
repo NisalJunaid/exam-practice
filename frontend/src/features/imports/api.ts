@@ -1,29 +1,30 @@
-import { apiFetch } from '@/lib/api'
-import type { ApiEnvelope } from '@/types/api'
+import { apiClient } from '@/lib/api/client'
+import { endpoints } from '@/lib/api/endpoints'
+import type { ApiEnvelope } from '@/lib/types/api'
+
 import type { DocumentImport, DocumentImportItem } from './types'
 
-export async function fetchImports() {
-  const response = await apiFetch<ApiEnvelope<DocumentImport[]>>('/admin/imports')
-  return response.data
-}
-
-export async function createImport(formData: FormData) {
-  const response = await apiFetch<ApiEnvelope<DocumentImport>>('/admin/imports', {
-    method: 'POST',
-    body: formData,
-  })
-  return response.data
-}
-
-export async function fetchImport(importId: string) {
-  const response = await apiFetch<ApiEnvelope<DocumentImport>>(`/admin/imports/${importId}`)
-  return response.data
-}
-
-export async function updateImportItem(itemId: number, payload: Partial<DocumentImportItem> & { questionKey: string; questionText: string; resolvedMaxMarks: number; matchStatus: DocumentImportItem['matchStatus'] }) {
-  const response = await apiFetch<ApiEnvelope<DocumentImportItem>>(`/admin/import-items/${itemId}`, {
-    method: 'PUT',
-    body: JSON.stringify({
+export const importsApi = {
+  async list() {
+    const { data } = await apiClient.get<ApiEnvelope<DocumentImport[]>>(endpoints.admin.imports)
+    return data.data
+  },
+  async create(formData: FormData) {
+    const { data } = await apiClient.post<ApiEnvelope<DocumentImport>>(endpoints.admin.imports, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data.data
+  },
+  async detail(importId: string) {
+    const { data } = await apiClient.get<ApiEnvelope<DocumentImport>>(endpoints.admin.import(importId))
+    return data.data
+  },
+  async items(importId: string) {
+    const { data } = await apiClient.get<ApiEnvelope<DocumentImportItem[]>>(endpoints.admin.importItems(importId))
+    return data.data
+  },
+  async updateItem(itemId: string | number, payload: Partial<DocumentImportItem> & { questionKey: string; questionText: string; resolvedMaxMarks: number; matchStatus: DocumentImportItem['matchStatus'] }) {
+    const { data } = await apiClient.put<ApiEnvelope<DocumentImportItem>>(endpoints.admin.importItem(itemId), {
       question_key: payload.questionKey,
       question_text: payload.questionText,
       reference_answer: payload.referenceAnswer,
@@ -32,13 +33,11 @@ export async function updateImportItem(itemId: number, payload: Partial<Document
       match_status: payload.matchStatus,
       admin_notes: payload.adminNotes,
       is_approved: payload.isApproved,
-    }),
-  })
-  return response.data
-}
-
-export async function approveImport(importId: number) {
-  return apiFetch<ApiEnvelope<{ paperId: number; paperTitle: string }>>(`/admin/imports/${importId}/approve`, {
-    method: 'POST',
-  })
+    })
+    return data.data
+  },
+  async approve(importId: string) {
+    const { data } = await apiClient.post<ApiEnvelope<{ paperId: number; paperTitle: string; isPublished: boolean }>>(endpoints.admin.approveImport(importId))
+    return data.data
+  },
 }
