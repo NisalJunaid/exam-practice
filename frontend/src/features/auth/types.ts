@@ -26,3 +26,9 @@ export interface AuthContextValue {
   logout: () => Promise<void>
   refresh: () => Promise<unknown>
 }
+
+export interface AuthFormCopy {
+  title: string
+  description: string
+  submitLabel: string
+}

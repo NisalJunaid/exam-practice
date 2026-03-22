@@ -1,15 +1,16 @@
 import { useMemo } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { BookX, RefreshCw } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/common/EmptyState'
-import { FormField } from '@/components/common/FormField'
 import { PageHeader } from '@/components/common/PageHeader'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { useCatalogFilters } from '@/features/catalog/hooks'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { useCatalogFilterOptions, useCatalogFilters } from '@/features/catalog/hooks'
+import { CatalogFiltersForm } from '@/features/catalog/components/CatalogFiltersForm'
 import { usePaperList } from '@/features/papers/hooks'
-import { routes } from '@/lib/constants/routes'
+import { PaperCard } from '@/features/papers/components/PaperCard'
+import { PaperCatalogSkeleton } from '@/features/papers/components/PaperCatalogSkeleton'
 
 export function PaperCatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -23,80 +24,71 @@ export function PaperCatalogPage() {
   }), [searchParams])
   const catalogQuery = useCatalogFilters()
   const papersQuery = usePaperList(filters)
+  const options = useCatalogFilterOptions(catalogQuery.data)
 
-  function setFilter(key: string, value: string) {
+  function setFilter(key: keyof typeof filters, value: string) {
     const next = new URLSearchParams(searchParams)
+
     if (value) next.set(key, value)
     else next.delete(key)
+
     setSearchParams(next)
+  }
+
+  function resetFilters() {
+    setSearchParams(new URLSearchParams())
   }
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Paper catalog"
-        title="Find published papers"
-        description="Catalog filters and paper listing are backed by typed endpoint helpers so the student browse experience can evolve without route churn."
+        title="Browse published exam papers"
+        description="Filter by board, level, and subject, then drill into each paper for instructions, metadata, and a start-attempt entry point."
+        actions={
+          <Button variant="outline" onClick={() => { void catalogQuery.refetch(); void papersQuery.refetch() }}>
+            <RefreshCw className="size-4" />
+            Refresh data
+          </Button>
+        }
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Search filters</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <FormField id="search" label="Search title or code">
-            <Input id="search" value={filters.q ?? ''} onChange={(event) => setFilter('q', event.target.value)} placeholder="Biology Paper 1" />
-          </FormField>
-          <FormField id="subject" label="Subject">
-            <select className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm" id="subject" value={filters.subject_id ?? ''} onChange={(event) => setFilter('subject_id', event.target.value)}>
-              <option value="">All subjects</option>
-              {catalogQuery.data?.subjects.map((subject) => (
-                <option key={subject.id} value={subject.id}>{subject.name}</option>
-              ))}
-            </select>
-          </FormField>
-          <FormField id="year" label="Year">
-            <select className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm" id="year" value={filters.year ?? ''} onChange={(event) => setFilter('year', event.target.value)}>
-              <option value="">Any year</option>
-              {catalogQuery.data?.years.map((year) => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-          </FormField>
-        </CardContent>
-      </Card>
+      <CatalogFiltersForm
+        filters={filters}
+        boardOptions={options.boards}
+        levelOptions={options.levels}
+        subjectOptions={options.subjects}
+        yearOptions={options.years}
+        sessionOptions={options.sessions}
+        isLoading={catalogQuery.isLoading}
+        onChange={setFilter}
+        onReset={resetFilters}
+      />
 
-      {papersQuery.data?.length ? (
+      {catalogQuery.isError || papersQuery.isError ? (
+        <Alert className="border-red-200 bg-red-50 text-red-700">
+          <AlertTitle>Unable to load the paper catalog</AlertTitle>
+          <AlertDescription>
+            {catalogQuery.error?.message ?? papersQuery.error?.message ?? 'Refresh the page and try again.'}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {papersQuery.isLoading ? (
+        <PaperCatalogSkeleton />
+      ) : papersQuery.data?.length ? (
         <div className="grid gap-4 xl:grid-cols-2">
           {papersQuery.data.map((paper) => (
-            <Card key={paper.id}>
-              <CardHeader className="gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge>{paper.subject.examBoard}</Badge>
-                  <Badge className="bg-slate-100 text-slate-700">{paper.subject.examLevel}</Badge>
-                </div>
-                <div>
-                  <CardTitle className="text-xl">{paper.title}</CardTitle>
-                  <p className="text-sm text-slate-500">{paper.subject.name} · {paper.paperCode ?? 'Uncoded paper'}</p>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
-                  <p><span className="font-medium text-slate-900">Marks:</span> {paper.totalMarks}</p>
-                  <p><span className="font-medium text-slate-900">Duration:</span> {paper.durationMinutes ?? 'TBC'} mins</p>
-                  <p><span className="font-medium text-slate-900">Session:</span> {paper.session ?? 'TBC'} {paper.year ?? ''}</p>
-                </div>
-                <Link className="text-sm font-medium text-blue-700" to={routes.papers.byId(paper.id)}>
-                  Open paper detail →
-                </Link>
-              </CardContent>
-            </Card>
+            <PaperCard key={paper.id} paper={paper} />
           ))}
         </div>
-      ) : papersQuery.isLoading ? (
-        <Card><CardContent className="pt-6 text-sm text-slate-600">Loading published papers…</CardContent></Card>
       ) : (
-        <EmptyState title="No papers match these filters" description="The route and search state are wired. Once more papers exist, this page will scale without structural changes." />
+        <EmptyState
+          title="No papers match your filters"
+          description="Try clearing one or more filters to broaden the search across boards, levels, subjects, and sessions."
+          icon={<BookX className="size-5" />}
+          action={<Button variant="outline" onClick={resetFilters}>Clear filters</Button>}
+        />
       )}
     </div>
   )

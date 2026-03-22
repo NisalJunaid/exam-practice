@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import type { CatalogSearchParams } from '@/features/catalog/types'
 import { papersApi } from '@/features/papers/api'
@@ -16,5 +16,16 @@ export function usePaperDetail(paperId: string) {
     queryKey: queryKeys.papers.detail(paperId),
     queryFn: () => papersApi.detail(paperId),
     enabled: Boolean(paperId),
+  })
+}
+
+export function useStartAttempt() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (paperId: string | number) => papersApi.startAttempt(paperId),
+    onSuccess: (attempt) => {
+      queryClient.setQueryData(queryKeys.attempts.detail(attempt.id), attempt)
+    },
   })
 }

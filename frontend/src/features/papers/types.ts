@@ -1,3 +1,5 @@
+import type { AttemptDetail } from '@/features/attempts/types'
+
 export interface PaperSubjectSummary {
   id: number
   name: string
@@ -32,3 +34,5 @@ export interface PaperDetail extends PaperListItem {
   instructions: string | null
   questions: PaperQuestionSummary[]
 }
+
+export type StartAttemptResponse = AttemptDetail
