@@ -1,3 +1,8 @@
+export interface ApiEnvelope<T> {
+  data: T
+  message?: string
+}
+
 export type UserRole = 'admin' | 'student'
 
 export interface User {
@@ -5,8 +10,4 @@ export interface User {
   name: string
   email: string
   role: UserRole
-}
-
-export interface ApiEnvelope<T> {
-  data: T
 }

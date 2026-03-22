@@ -1,75 +1,72 @@
-import { useState } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
+import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
-import { useImportsList } from '@/features/imports/hooks'
 
-const uploadSchema = z.object({
-  questionPaper: z.instanceof(File),
-  markScheme: z.instanceof(File),
+import { FormField } from '@/components/common/FormField'
+import { PageHeader } from '@/components/common/PageHeader'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { useCreateImport, useImports } from '@/features/imports/hooks'
+import { routes } from '@/lib/constants/routes'
+
+const schema = z.object({
+  question_paper: z.instanceof(File, { message: 'Upload the question paper PDF.' }),
+  mark_scheme: z.instanceof(File, { message: 'Upload the mark scheme PDF.' }),
 })
 
-export function AdminImportPaperPage({ onOpenImport }: { onOpenImport: (importId: number) => void }) {
-  const imports = useImportsList()
-  const [questionPaper, setQuestionPaper] = useState<File | null>(null)
-  const [markScheme, setMarkScheme] = useState<File | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [creating, setCreating] = useState(false)
+type FormValues = z.infer<typeof schema>
+
+export function AdminImportPaperPage() {
+  const navigate = useNavigate()
+  const importsQuery = useImports()
+  const createImport = useCreateImport()
+  const form = useForm<FormValues>({ resolver: zodResolver(schema) })
+
+  async function onSubmit(values: FormValues) {
+    const data = new FormData()
+    data.append('question_paper', values.question_paper)
+    data.append('mark_scheme', values.mark_scheme)
+
+    const created = await createImport.mutateAsync(data)
+    navigate(routes.admin.imports.byId(created.id))
+  }
 
   return (
-    <div className="stack-lg">
-      <section>
-        <h1>Admin import workflow</h1>
-        <p className="subtle-text">Upload both files, review the generated draft, edit ambiguous items, then approve to publish the paper.</p>
-      </section>
-      <section className="panel stack-md">
-        <h2>Upload draft import</h2>
-        <label className="field">
-          <span>Question paper PDF</span>
-          <input type="file" accept=".pdf,.txt" onChange={(event) => setQuestionPaper(event.target.files?.[0] ?? null)} />
-        </label>
-        <label className="field">
-          <span>Mark scheme PDF</span>
-          <input type="file" accept=".pdf,.txt" onChange={(event) => setMarkScheme(event.target.files?.[0] ?? null)} />
-        </label>
-        {error ? <p className="error-text">{error}</p> : null}
-        <button
-          className="button"
-          disabled={creating}
-          onClick={async () => {
-            setError(null)
-            setCreating(true)
-            try {
-              const validated = uploadSchema.parse({ questionPaper, markScheme })
-              const formData = new FormData()
-              formData.append('question_paper', validated.questionPaper)
-              formData.append('mark_scheme', validated.markScheme)
-              const created = await imports.create(formData)
-              onOpenImport(created.id)
-            } catch (err) {
-              setError(err instanceof Error ? err.message : 'Unable to create import.')
-            } finally {
-              setCreating(false)
-            }
-          }}
-        >
-          {creating ? 'Processing import…' : 'Create draft import'}
-        </button>
-      </section>
-
-      <section className="stack-md">
-        <h2>Existing imports</h2>
-        {imports.loading ? <div className="panel">Loading imports…</div> : null}
-        {imports.error ? <div className="panel error-text">{imports.error}</div> : null}
-        {imports.data.map((item) => (
-          <article key={item.id} className="panel row-between wrap-gap">
-            <div>
-              <h3>{item.questionPaperName}</h3>
-              <p className="subtle-text">Mark scheme: {item.markSchemeName}</p>
-              <p className="info-text">Status: {item.status}</p>
+    <div className="space-y-8">
+      <PageHeader eyebrow="Import paper" title="Upload paper + mark scheme" description="The import upload route uses RHF + Zod, while the list beneath shows prior imports for rapid review handoff." />
+      <Card>
+        <CardHeader><CardTitle>Upload source files</CardTitle></CardHeader>
+        <CardContent>
+          <form className="grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit(onSubmit)}>
+            <FormField id="question_paper" label="Question paper PDF" error={form.formState.errors.question_paper?.message}>
+              <Input id="question_paper" type="file" accept="application/pdf" onChange={(event) => form.setValue('question_paper', event.target.files?.[0] as File)} />
+            </FormField>
+            <FormField id="mark_scheme" label="Mark scheme PDF" error={form.formState.errors.mark_scheme?.message}>
+              <Input id="mark_scheme" type="file" accept="application/pdf" onChange={(event) => form.setValue('mark_scheme', event.target.files?.[0] as File)} />
+            </FormField>
+            <div className="md:col-span-2 flex justify-end">
+              <Button disabled={createImport.isPending} type="submit">{createImport.isPending ? 'Uploading…' : 'Create import job'}</Button>
             </div>
-            <button className="button" onClick={() => onOpenImport(item.id)}>Review import</button>
-          </article>
-        ))}
-      </section>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Recent imports</CardTitle></CardHeader>
+        <CardContent className="grid gap-3">
+          {importsQuery.data?.map((item) => (
+            <button key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 p-4 text-left text-sm hover:bg-slate-50" onClick={() => navigate(routes.admin.imports.byId(item.id))} type="button">
+              <div>
+                <p className="font-medium text-slate-900">Import #{item.id}</p>
+                <p className="text-slate-500">{item.questionPaperName ?? 'Unnamed question paper'} · {item.markSchemeName ?? 'Unnamed mark scheme'}</p>
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">{item.status}</div>
+            </button>
+          )) ?? <p className="text-sm text-slate-600">No imports yet.</p>}
+        </CardContent>
+      </Card>
     </div>
   )
 }
