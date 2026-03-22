@@ -2,21 +2,108 @@
 
 namespace Database\Seeders;
 
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Enums\UserRole;
+use App\Models\ExamBoard;
+use App\Models\ExamLevel;
+use App\Models\Paper;
+use App\Models\QuestionRubric;
+use App\Models\Subject;
+use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // \App\Models\User::factory(10)->create();
+        $admin = User::query()->updateOrCreate(
+            ['email' => 'admin@example.com'],
+            ['name' => 'Admin Reviewer', 'password' => 'password', 'role' => UserRole::Admin],
+        );
 
-        // \App\Models\User::factory()->create([
-        //     'name' => 'Test User',
-        //     'email' => 'test@example.com',
-        // ]);
+        $student = User::query()->updateOrCreate(
+            ['email' => 'student@example.com'],
+            ['name' => 'Student Demo', 'password' => 'password', 'role' => UserRole::Student],
+        );
+
+        $board = ExamBoard::query()->updateOrCreate(['slug' => 'cambridge'], ['name' => 'Cambridge']);
+        $level = ExamLevel::query()->updateOrCreate(['slug' => 'igcse'], ['name' => 'IGCSE']);
+
+        $subject = Subject::query()->updateOrCreate(
+            ['slug' => 'biology-0610'],
+            [
+                'exam_board_id' => $board->id,
+                'exam_level_id' => $level->id,
+                'name' => 'Biology',
+                'code' => '0610',
+            ],
+        );
+
+        $paper = Paper::query()->updateOrCreate(
+            ['slug' => 'biology-paper-1-demo'],
+            [
+                'subject_id' => $subject->id,
+                'title' => 'Biology Paper 1 Demo',
+                'paper_code' => 'P1',
+                'year' => 2025,
+                'session' => 'May/June',
+                'duration_minutes' => 75,
+                'total_marks' => 9,
+                'instructions' => "Answer all questions. Submit the whole paper before you can see the review.",
+                'is_published' => true,
+            ],
+        );
+
+        $questions = [
+            [
+                'question_number' => '1',
+                'question_key' => '1(a)',
+                'question_text' => 'State two raw materials needed for photosynthesis.',
+                'reference_answer' => 'Carbon dioxide and water.',
+                'max_marks' => 2,
+                'marking_guidelines' => 'Award one mark each for carbon dioxide and water.',
+                'keywords' => ['carbon dioxide', 'water'],
+            ],
+            [
+                'question_number' => '1',
+                'question_key' => '1(b)',
+                'question_text' => 'Explain the role of chlorophyll in photosynthesis.',
+                'reference_answer' => 'Chlorophyll absorbs light energy for photosynthesis.',
+                'max_marks' => 3,
+                'marking_guidelines' => 'Mention absorption of light energy linked to photosynthesis.',
+                'keywords' => ['chlorophyll', 'light', 'energy'],
+            ],
+            [
+                'question_number' => '2',
+                'question_key' => '2(a)',
+                'question_text' => 'Give two reasons why a larger sample size improves an experiment.',
+                'reference_answer' => 'It reduces the effect of anomalies and improves reliability.',
+                'max_marks' => 4,
+                'marking_guidelines' => 'Allow answers about reliability, anomalies, and more representative data.',
+                'keywords' => ['reliability', 'anomalies', 'representative'],
+            ],
+        ];
+
+        foreach ($questions as $index => $definition) {
+            $question = $paper->questions()->updateOrCreate(
+                ['question_key' => $definition['question_key']],
+                [
+                    'question_number' => $definition['question_number'],
+                    'question_text' => $definition['question_text'],
+                    'reference_answer' => $definition['reference_answer'],
+                    'max_marks' => $definition['max_marks'],
+                    'marking_guidelines' => $definition['marking_guidelines'],
+                    'order_index' => $index + 1,
+                ],
+            );
+
+            QuestionRubric::query()->updateOrCreate(
+                ['paper_question_id' => $question->id],
+                [
+                    'keywords_expected' => $definition['keywords'],
+                    'marker_notes' => $definition['marking_guidelines'],
+                ],
+            );
+        }
     }
 }
