@@ -3,7 +3,7 @@
 namespace App\Services\Attempts;
 
 use App\Enums\PaperAttemptStatus;
-use App\Jobs\ProcessAttemptMarkingJob;
+use App\Jobs\MarkPaperAttemptJob;
 use App\Models\Paper;
 use App\Models\PaperAttempt;
 use App\Models\User;
@@ -80,11 +80,14 @@ class AttemptService
         $attempt->update([
             'status' => PaperAttemptStatus::Submitted,
             'submitted_at' => $submittedAt,
+            'completed_at' => null,
+            'total_awarded_marks' => null,
+            'marking_summary' => 'Attempt submitted. AI marking has been queued.',
         ]);
 
         $attempt->answers()->update(['submitted_at' => $submittedAt]);
 
-        ProcessAttemptMarkingJob::dispatchSync($attempt->fresh());
+        MarkPaperAttemptJob::dispatch($attempt->id);
 
         return $this->getAttempt($attempt->fresh());
     }
