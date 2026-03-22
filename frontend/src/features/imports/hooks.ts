@@ -22,6 +22,18 @@ export function useImportDetail(importId: string) {
   })
 }
 
+export function useImportItems(importId: string) {
+  return useQuery({
+    queryKey: queryKeys.admin.importItems(importId),
+    queryFn: () => importsApi.items(importId),
+    enabled: Boolean(importId),
+    refetchInterval: (query) => {
+      const items = query.state.data
+      return items?.length ? false : 5000
+    },
+  })
+}
+
 export function useCreateImport() {
   const queryClient = useQueryClient()
 
@@ -40,6 +52,8 @@ export function useUpdateImportItem(importId: string) {
     mutationFn: ({ itemId, ...payload }: { itemId: string | number } & Parameters<typeof importsApi.updateItem>[1]) => importsApi.updateItem(itemId, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.admin.import(importId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.importItems(importId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.imports })
     },
   })
 }
@@ -51,6 +65,8 @@ export function useApproveImport(importId: string) {
     mutationFn: () => importsApi.approve(importId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.admin.import(importId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.importItems(importId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.imports })
       void queryClient.invalidateQueries({ queryKey: queryKeys.admin.papers })
     },
   })
