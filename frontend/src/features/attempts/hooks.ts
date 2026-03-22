@@ -8,26 +8,10 @@ export function useAttemptDetail(attemptId: string) {
     queryKey: queryKeys.attempts.detail(attemptId),
     queryFn: () => attemptsApi.detail(attemptId),
     enabled: Boolean(attemptId),
-    refetchInterval: (query) => (query.state.data?.status === 'marking' ? 5000 : false),
-  })
-}
-
-export function useAttemptResult(attemptId: string) {
-  return useQuery({
-    queryKey: queryKeys.attempts.results(attemptId),
-    queryFn: () => attemptsApi.results(attemptId),
-    enabled: Boolean(attemptId),
-    retry: false,
-    refetchInterval: (query) => (query.state.data?.status === 'marking' ? 4000 : false),
-  })
-}
-
-export function useAttemptReview(attemptId: string) {
-  return useQuery({
-    queryKey: queryKeys.attempts.review(attemptId),
-    queryFn: () => attemptsApi.review(attemptId),
-    enabled: Boolean(attemptId),
-    retry: false,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return status === 'submitted' || status === 'marking' ? 5000 : false
+    },
   })
 }
 
@@ -59,8 +43,8 @@ export function useSubmitAttempt(attemptId: string) {
   return useMutation({
     mutationFn: () => attemptsApi.submit(attemptId),
     onSuccess: (attempt) => {
-      queryClient.setQueryData(queryKeys.attempts.results(attempt.id), attempt)
       queryClient.setQueryData(queryKeys.attempts.detail(attempt.id), attempt)
+      queryClient.setQueryData(queryKeys.attempts.results(attempt.id), attempt)
     },
   })
 }

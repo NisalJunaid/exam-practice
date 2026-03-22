@@ -30,46 +30,24 @@ export interface AttemptDetail {
   questions: AttemptQuestion[]
 }
 
-export interface AttemptResultSummary {
-  attemptId: number
-  status: AttemptStatus
-  totalAwardedMarks: number
-  totalMaxMarks: number
-  percentage: number
-  questions: Array<{
-    questionId: number
-    questionNumber: string
-    awardedMarks: number
-    maxMarks: number
-  }>
-}
-
-export interface AttemptResult extends AttemptDetail {
-  result: AttemptResultSummary
-}
-
-export interface AttemptReviewQuestion {
-  questionId: number
+export interface SubmittedAttemptResultQuestion {
+  id: number
   questionNumber: string
-  questionText: string
-  studentAnswer: string
-  awardedMarks: number
+  questionKey: string | null
   maxMarks: number
-  reasoning: string
-  feedback: string
-  strengths: string[]
-  mistakes: string[]
+  awardedMarks: number | null
 }
 
-export interface AttemptReview extends AttemptDetail {
-  review: {
-    attemptId: number
-    status: AttemptStatus
-    totalAwardedMarks: number
-    totalMaxMarks: number
-    percentage: number
-    questions: AttemptReviewQuestion[]
-  }
+export interface SubmittedAttemptResultPayload {
+  status: AttemptStatus
+  totalAwardedMarks: number | null
+  totalMaxMarks: number
+  markingSummary: string | null
+  questions: SubmittedAttemptResultQuestion[]
+}
+
+export interface SubmittedAttemptDetail extends AttemptDetail {
+  result: SubmittedAttemptResultPayload
 }
 
 export interface SaveAnswersPayload {
