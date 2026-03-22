@@ -2,51 +2,65 @@
 
 namespace App\Services\AI;
 
-use App\Models\PaperQuestion;
+use App\Services\Marking\Contracts\MarkingProvider;
 
-class FakeMarkingProvider
+class FakeMarkingProvider implements MarkingProvider
 {
-    public function mark(PaperQuestion $question, ?string $studentAnswer): array
-    {
-        $studentAnswer = trim((string) $studentAnswer);
-        $reference = trim((string) $question->reference_answer);
+    public function __construct(private readonly string $model = 'deterministic-reviewer') {}
 
-        if ($studentAnswer === '') {
-            return [
-                'awarded_marks' => 0,
-                'reasoning' => 'No answer was submitted, so no marks could be awarded.',
-                'feedback' => 'Write at least one direct response to the command word and include key facts from the mark scheme.',
-                'strengths' => [],
-                'mistakes' => ['Blank response'],
-                'ai_confidence' => 0.99,
-            ];
-        }
+    public function providerName(): string
+    {
+        return 'fake';
+    }
+
+    public function modelName(): string
+    {
+        return $this->model;
+    }
+
+    public function generateMarking(array $prompt): array
+    {
+        $question = $prompt['context']['question'];
+        $answer = trim((string) data_get($prompt, 'context.answer.student_answer'));
+        $reference = trim((string) data_get($question, 'reference_answer'));
+        $maxMarks = (int) data_get($question, 'max_marks', 0);
 
         $referenceWords = collect(preg_split('/\W+/', strtolower($reference)) ?: [])
-            ->filter(fn ($word) => strlen($word) > 3)
+            ->filter(fn (string $word) => strlen($word) > 3)
             ->unique()
             ->values();
-        $answerWords = collect(preg_split('/\W+/', strtolower($studentAnswer)) ?: [])->unique();
+        $answerWords = collect(preg_split('/\W+/', strtolower($answer)) ?: [])->filter()->unique()->values();
 
-        $matches = $referenceWords->filter(fn ($word) => $answerWords->contains($word));
+        $matches = $referenceWords->filter(fn (string $word) => $answerWords->contains($word))->values();
         $ratio = $referenceWords->isEmpty() ? 0.5 : min(1, $matches->count() / max(1, $referenceWords->count()));
-        $awarded = (int) round($question->max_marks * $ratio);
-        $awarded = max(0, min($question->max_marks, $awarded));
+        $awarded = max(0, min($maxMarks, (int) round($maxMarks * $ratio)));
 
-        $strengths = $matches->take(3)->map(fn ($word) => 'Included key idea: '.$word)->values()->all();
-        $mistakes = $referenceWords->reject(fn ($word) => $answerWords->contains($word))->take(3)->map(fn ($word) => 'Missing key point: '.$word)->values()->all();
+        $result = [
+            'awarded_marks' => $awarded,
+            'reasoning' => $awarded === $maxMarks
+                ? 'The answer covers the core points expected by the reference answer and rubric.'
+                : 'The answer includes some relevant material but misses part of the expected marking points.',
+            'feedback' => $awarded === $maxMarks
+                ? 'Keep using direct exam wording and complete coverage of each required point.'
+                : 'Add more explicit mark-scheme terminology and make sure each required point is stated clearly.',
+            'strengths' => $matches->take(3)->map(fn (string $word) => 'Included key idea: '.$word)->values()->all(),
+            'mistakes' => $referenceWords->reject(fn (string $word) => $answerWords->contains($word))->take(3)->map(fn (string $word) => 'Missing key point: '.$word)->values()->all(),
+            'ai_confidence' => round(0.55 + ($ratio * 0.4), 2),
+        ];
 
         return [
-            'awarded_marks' => $awarded,
-            'reasoning' => $awarded === $question->max_marks
-                ? 'The answer covers the core points expected by the stored rubric and reference answer.'
-                : 'The answer includes some relevant points, but it misses parts of the stored reference answer and marking guidance.',
-            'feedback' => $awarded === $question->max_marks
-                ? 'Maintain this level of precision and structure in future answers.'
-                : 'Add more explicit mark-scheme terminology and cover each required point in a short, direct structure.',
-            'strengths' => $strengths,
-            'mistakes' => $mistakes,
-            'ai_confidence' => round(0.55 + ($ratio * 0.4), 2),
+            'request_payload' => [
+                'provider' => $this->providerName(),
+                'prompt' => [
+                    'system' => $prompt['system'],
+                    'user' => $prompt['user'],
+                ],
+                'context' => $prompt['context'],
+            ],
+            'response_payload' => [
+                'content' => json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
+            ],
+            'content' => json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
         ];
     }
 }
