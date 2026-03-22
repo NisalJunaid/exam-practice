@@ -188,6 +188,24 @@ class AdminImportApprovalTest extends TestCase
         ]);
     }
 
+    public function test_admin_cannot_approve_import_until_all_review_only_rows_are_resolved(): void
+    {
+        $this->fakeExtraction();
+        $existingPaperCount = Paper::query()->count();
+        $importId = $this->withHeader('Accept', 'application/json')->post('/api/admin/imports', $this->uploadPayload())->json('data.id');
+
+        $this->postJson("/api/admin/imports/{$importId}/approve")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Resolve all ambiguous or unmatched import items before approval.');
+
+        $this->assertDatabaseHas('document_imports', [
+            'id' => $importId,
+            'status' => 'needs_review',
+            'approved_paper_id' => null,
+        ]);
+        $this->assertSame($existingPaperCount, Paper::query()->count());
+    }
+
     private function fakeExtraction(): void
     {
         $this->app->instance(PdfPageExtractor::class, new ArrayPdfPageExtractor([

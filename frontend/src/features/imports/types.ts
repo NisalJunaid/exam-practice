@@ -1,4 +1,4 @@
-export type ImportStatus = 'uploaded' | 'processing' | 'needs_review' | 'completed' | 'failed'
+export type ImportStatus = 'uploaded' | 'processing' | 'needs_review' | 'approved' | 'failed'
 export type ImportMatchStatus = 'matched' | 'paper_only' | 'scheme_only' | 'ambiguous' | 'resolved'
 
 export interface ImportSourceFile {
@@ -31,6 +31,8 @@ export interface DocumentImportItem {
   orderIndex: number | null
   isApproved: boolean
   adminNotes: string | null
+  rawQuestionPayload?: Record<string, unknown> | null
+  rawMarkSchemePayload?: Record<string, unknown> | null
 }
 
 export interface DocumentImport {

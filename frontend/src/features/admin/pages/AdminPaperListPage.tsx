@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAdminPapers } from '@/features/admin/hooks'
 import { routes } from '@/lib/constants/routes'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 export function AdminPaperListPage() {
   const papersQuery = useAdminPapers()
@@ -66,6 +67,11 @@ export function AdminPaperListPage() {
         <CardContent>
           {papersQuery.isLoading ? (
             <p className="text-sm text-slate-600">Loading papers…</p>
+          ) : papersQuery.isError ? (
+            <Alert className="border-red-200 bg-red-50 text-red-900">
+              <AlertTitle>Could not load papers</AlertTitle>
+              <AlertDescription>{papersQuery.error.message}</AlertDescription>
+            </Alert>
           ) : filteredPapers.length ? (
             <div className="overflow-x-auto">
               <Table>

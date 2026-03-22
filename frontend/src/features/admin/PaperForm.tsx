@@ -14,7 +14,7 @@ import type { AdminPaper, AdminPaperFormValues, AdminSubjectOption } from './typ
 import { paperToFormValues, toPaperPayload } from './utils'
 
 const schema = z.object({
-  subject_id: z.coerce.number().int().positive('Select or enter a subject ID.'),
+  subject_id: z.number().int().positive('Select or enter a subject ID.'),
   title: z.string().trim().min(3, 'Enter a clear paper title.'),
   slug: z.string().trim(),
   paper_code: z.string().trim(),
@@ -85,7 +85,12 @@ export function PaperForm({ mode, paper, subjectOptions = [], isSubmitting, onSu
               </select>
             </FormField>
             <FormField error={form.formState.errors.subject_id?.message} hint={selectedSubject?.helper ?? 'Manual entry is supported if the subject is not listed above.'} id="subject_id" label="Subject ID">
-              <Input id="subject_id" inputMode="numeric" {...form.register('subject_id', { valueAsNumber: true })} />
+              <Input
+                id="subject_id"
+                inputMode="numeric"
+                type="number"
+                {...form.register('subject_id', { valueAsNumber: true })}
+              />
             </FormField>
             <FormField error={form.formState.errors.title?.message} id="title" label="Title">
               <Input id="title" placeholder="Biology Paper 1" {...form.register('title')} />

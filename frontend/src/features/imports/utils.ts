@@ -10,7 +10,7 @@ export function formatMatchStatus(status: ImportMatchStatus) {
 
 export function getImportStatusTone(status: ImportStatus) {
   switch (status) {
-    case 'completed':
+    case 'approved':
       return 'bg-emerald-50 text-emerald-700 border-emerald-200'
     case 'needs_review':
       return 'bg-amber-50 text-amber-800 border-amber-200'
@@ -24,10 +24,14 @@ export function getImportStatusTone(status: ImportStatus) {
 }
 
 export function getCounts(summary: DocumentImport['summary'] | undefined, items: DocumentImportItem[]) {
-  const total = summary?.total_items ?? items.length
-  const matched = summary?.matched ?? items.filter((item) => item.matchStatus === 'matched' || item.matchStatus === 'resolved').length
-  const ambiguous = summary?.ambiguous ?? items.filter((item) => item.matchStatus === 'ambiguous').length
-  const unmatched = summary?.unmatched ?? items.filter((item) => item.matchStatus === 'paper_only' || item.matchStatus === 'scheme_only').length
+  const total = summary?.totalItems ?? items.length
+  const matched = summary && ('matchedItems' in summary || 'resolvedItems' in summary)
+    ? (summary.matchedItems ?? 0) + (summary.resolvedItems ?? 0)
+    : items.filter((item) => item.matchStatus === 'matched' || item.matchStatus === 'resolved').length
+  const ambiguous = summary?.ambiguousItems ?? items.filter((item) => item.matchStatus === 'ambiguous').length
+  const unmatched = summary && ('paperOnlyItems' in summary || 'schemeOnlyItems' in summary)
+    ? (summary.paperOnlyItems ?? 0) + (summary.schemeOnlyItems ?? 0)
+    : items.filter((item) => item.matchStatus === 'paper_only' || item.matchStatus === 'scheme_only').length
 
   return { total, matched, ambiguous, unmatched }
 }

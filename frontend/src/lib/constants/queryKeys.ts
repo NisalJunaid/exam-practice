@@ -8,7 +8,7 @@ export const queryKeys = {
   },
   papers: {
     all: ['api', 'papers'] as const,
-    list: (filters: Record<string, unknown>) => ['api', 'papers', 'list', filters] as const,
+    list: <T extends object>(filters: T) => ['api', 'papers', 'list', filters] as const,
     detail: (paperId: string | number) => ['api', 'papers', 'detail', paperId] as const,
   },
   attempts: {
