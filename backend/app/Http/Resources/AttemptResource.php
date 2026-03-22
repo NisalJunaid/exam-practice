@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Enums\PaperAttemptStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -10,8 +9,6 @@ class AttemptResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $showReview = in_array($this->status, [PaperAttemptStatus::Completed, PaperAttemptStatus::Failed], true);
-
         return [
             'id' => $this->id,
             'status' => $this->status?->value,
@@ -20,34 +17,26 @@ class AttemptResource extends JsonResource
             'completedAt' => optional($this->completed_at)->toIso8601String(),
             'totalAwardedMarks' => $this->total_awarded_marks,
             'totalMaxMarks' => $this->total_max_marks,
-            'markingSummary' => $showReview ? $this->marking_summary : null,
+            'markingSummary' => $this->marking_summary,
             'paper' => [
                 'id' => $this->paper->id,
                 'title' => $this->paper->title,
                 'subject' => $this->paper->subject->name,
+                'paperCode' => $this->paper->paper_code,
             ],
-            'questions' => $this->paper->questions->map(function ($question) use ($showReview) {
+            'questions' => $this->paper->questions->map(function ($question) {
                 $answer = $this->answers->firstWhere('paper_question_id', $question->id);
-                $marking = $this->markings->firstWhere('paper_question_id', $question->id);
 
                 return [
                     'id' => $question->id,
                     'questionNumber' => $question->question_number,
                     'questionKey' => $question->question_key,
                     'questionText' => $question->question_text,
+                    'stemContext' => $question->stem_context,
                     'maxMarks' => $question->max_marks,
                     'studentAnswer' => $answer?->student_answer,
                     'isBlank' => $answer?->is_blank ?? true,
-                    'review' => $showReview && $marking ? [
-                        'awardedMarks' => $marking->awarded_marks,
-                        'maxMarks' => $marking->max_marks,
-                        'reasoning' => $marking->reasoning,
-                        'feedback' => $marking->feedback,
-                        'strengths' => $marking->strengths ?? [],
-                        'mistakes' => $marking->mistakes ?? [],
-                        'referenceAnswer' => $question->reference_answer,
-                        'markingGuidelines' => $question->marking_guidelines,
-                    ] : null,
+                    'submittedAt' => optional($answer?->submitted_at)->toIso8601String(),
                 ];
             })->values(),
         ];

@@ -15,15 +15,13 @@ use RuntimeException;
 
 class AttemptController extends Controller
 {
-    public function __construct(private readonly AttemptService $service)
-    {
-    }
+    public function __construct(private readonly AttemptService $service) {}
 
     public function store(Paper $paper): JsonResponse
     {
         abort_unless($paper->is_published, 404);
 
-        $attempt = $this->service->createAttempt(request()->user(), $paper->load('questions', 'subject'));
+        $attempt = $this->service->createAttempt(request()->user(), $paper->load('questions', 'subject.examBoard', 'subject.examLevel'));
 
         return response()->json(['data' => new AttemptResource($attempt)], 201);
     }
@@ -53,7 +51,7 @@ class AttemptController extends Controller
         $this->authorize('submit', $attempt);
 
         try {
-            $attempt = $this->service->submit($attempt);
+            $attempt = $this->service->submitAttempt($attempt);
         } catch (RuntimeException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
@@ -65,13 +63,27 @@ class AttemptController extends Controller
     {
         $this->authorize('review', $attempt);
 
-        return response()->json(['data' => new AttemptResultResource($this->service->getAttempt($attempt))]);
+        try {
+            $attempt = $this->service->getAttempt($attempt);
+            $this->service->ensureResultsAvailable($attempt);
+        } catch (RuntimeException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 409);
+        }
+
+        return response()->json(['data' => new AttemptResultResource($attempt)]);
     }
 
     public function review(PaperAttempt $attempt): JsonResponse
     {
         $this->authorize('review', $attempt);
 
-        return response()->json(['data' => new AttemptReviewResource($this->service->getAttempt($attempt))]);
+        try {
+            $attempt = $this->service->getAttempt($attempt);
+            $this->service->ensureReviewAvailable($attempt);
+        } catch (RuntimeException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 409);
+        }
+
+        return response()->json(['data' => new AttemptReviewResource($attempt)]);
     }
 }
