@@ -17,6 +17,9 @@ class UpdateDocumentImportItemRequest extends FormRequest
     {
         return [
             'question_key' => ['required', 'string', 'max:255'],
+            'question_number' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'parent_key' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'stem_context' => ['sometimes', 'nullable', 'string'],
             'question_text' => ['required', 'string'],
             'reference_answer' => ['nullable', 'string'],
             'marking_guidelines' => ['nullable', 'string'],

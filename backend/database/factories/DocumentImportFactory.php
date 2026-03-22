@@ -27,6 +27,7 @@ class DocumentImportFactory extends Factory
             'summary' => null,
             'raw_extraction_payload' => null,
             'review_notes' => null,
+            'error_message' => null,
             'approved_paper_id' => null,
             'processed_at' => null,
         ];

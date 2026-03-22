@@ -23,6 +23,7 @@ class DocumentImport extends Model
         'summary',
         'raw_extraction_payload',
         'review_notes',
+        'error_message',
         'approved_paper_id',
         'processed_at',
     ];

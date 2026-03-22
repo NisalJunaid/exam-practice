@@ -19,7 +19,9 @@ class DocumentImportItemFactory extends Factory
         return [
             'document_import_id' => DocumentImport::factory(),
             'question_key' => fake()->regexify('[1-9]\([a-d]\)'),
+            'parent_key' => null,
             'question_number' => (string) fake()->numberBetween(1, 12),
+            'stem_context' => fake()->optional()->sentence(),
             'question_text' => fake()->paragraph(),
             'reference_answer' => fake()->optional()->paragraph(),
             'marking_guidelines' => fake()->optional()->paragraph(),
@@ -28,10 +30,14 @@ class DocumentImportItemFactory extends Factory
             'resolved_max_marks' => fake()->optional()->numberBetween(1, 10),
             'match_status' => fake()->randomElement(ImportMatchStatus::cases()),
             'page_number' => fake()->optional()->numberBetween(1, 20),
+            'question_page_number' => fake()->optional()->numberBetween(1, 20),
+            'mark_scheme_page_number' => fake()->optional()->numberBetween(1, 20),
             'order_index' => fake()->numberBetween(1, 20),
             'is_approved' => false,
             'admin_notes' => null,
             'raw_payload' => null,
+            'raw_question_payload' => null,
+            'raw_mark_scheme_payload' => null,
         ];
     }
 }
