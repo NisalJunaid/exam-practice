@@ -31,4 +31,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+
+
+    'ai_marking' => [
+        'provider' => env('AI_MARKING_PROVIDER', 'fake'),
+        'model' => env('AI_MARKING_MODEL', 'deterministic-reviewer'),
+    ],
+
 ];
