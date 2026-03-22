@@ -44,6 +44,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/papers/{paper}/questions', [QuestionAdminController::class, 'store']);
     Route::get('/questions/{question}', [QuestionAdminController::class, 'show']);
     Route::put('/questions/{question}', [QuestionAdminController::class, 'update']);
+    Route::put('/questions/{question}/rubric', [QuestionAdminController::class, 'updateRubric']);
     Route::delete('/questions/{question}', [QuestionAdminController::class, 'destroy']);
 
     Route::get('/imports', [PaperImportController::class, 'index']);

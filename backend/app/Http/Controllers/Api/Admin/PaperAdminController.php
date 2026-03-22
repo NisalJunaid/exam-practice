@@ -7,75 +7,63 @@ use App\Http\Requests\Admin\StorePaperRequest;
 use App\Http\Requests\Admin\UpdatePaperRequest;
 use App\Http\Resources\AdminPaperResource;
 use App\Models\Paper;
+use App\Services\Papers\Admin\AdminPaperService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Str;
 
 class PaperAdminController extends Controller
 {
+    public function __construct(private readonly AdminPaperService $service) {}
+
     public function index(): JsonResponse
     {
-        $papers = Paper::query()
-            ->with(['subject.examBoard', 'subject.examLevel', 'questions'])
-            ->latest('id')
-            ->get();
-
-        return response()->json(['data' => AdminPaperResource::collection($papers)]);
+        return response()->json([
+            'data' => AdminPaperResource::collection($this->service->list()),
+        ]);
     }
 
     public function store(StorePaperRequest $request): JsonResponse
     {
-        $paper = Paper::query()->create([
-            ...$request->validated(),
-            'slug' => $request->validated('slug') ?: Str::slug($request->string('title')->toString().'-'.now()->timestamp),
-        ]);
-
         return response()->json([
             'message' => 'Paper created.',
-            'data' => new AdminPaperResource($paper->load(['subject.examBoard', 'subject.examLevel', 'questions'])),
+            'data' => new AdminPaperResource($this->service->create($request->validated())),
         ], 201);
     }
 
     public function show(Paper $paper): JsonResponse
     {
         return response()->json([
-            'data' => new AdminPaperResource($paper->load(['subject.examBoard', 'subject.examLevel', 'questions'])),
+            'data' => new AdminPaperResource($this->service->get($paper)),
         ]);
     }
 
     public function update(UpdatePaperRequest $request, Paper $paper): JsonResponse
     {
-        $paper->update($request->validated());
-
         return response()->json([
             'message' => 'Paper updated.',
-            'data' => new AdminPaperResource($paper->fresh()->load(['subject.examBoard', 'subject.examLevel', 'questions'])),
+            'data' => new AdminPaperResource($this->service->update($paper, $request->validated())),
         ]);
     }
 
     public function destroy(Paper $paper): JsonResponse
     {
-        $paper->delete();
+        $this->service->delete($paper);
 
         return response()->json(['message' => 'Paper deleted.']);
     }
 
     public function publish(Paper $paper): JsonResponse
     {
-        $paper->update(['is_published' => true]);
-
         return response()->json([
             'message' => 'Paper published.',
-            'data' => new AdminPaperResource($paper->fresh()->load(['subject.examBoard', 'subject.examLevel', 'questions'])),
+            'data' => new AdminPaperResource($this->service->publish($paper)),
         ]);
     }
 
     public function unpublish(Paper $paper): JsonResponse
     {
-        $paper->update(['is_published' => false]);
-
         return response()->json([
             'message' => 'Paper unpublished.',
-            'data' => new AdminPaperResource($paper->fresh()->load(['subject.examBoard', 'subject.examLevel', 'questions'])),
+            'data' => new AdminPaperResource($this->service->unpublish($paper)),
         ]);
     }
 }

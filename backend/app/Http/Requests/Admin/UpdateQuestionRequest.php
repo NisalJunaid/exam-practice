@@ -14,7 +14,7 @@ class UpdateQuestionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'question_number' => ['sometimes', 'string', 'max:50'],
+            'question_number' => ['sometimes', 'nullable', 'string', 'max:50'],
             'question_key' => ['sometimes', 'nullable', 'string', 'max:255'],
             'question_text' => ['sometimes', 'string'],
             'reference_answer' => ['sometimes', 'string'],
@@ -23,6 +23,15 @@ class UpdateQuestionRequest extends FormRequest
             'sample_full_mark_answer' => ['sometimes', 'nullable', 'string'],
             'order_index' => ['sometimes', 'integer', 'min:1'],
             'stem_context' => ['sometimes', 'nullable', 'string'],
+            'rubric' => ['sometimes', 'array'],
+            'rubric.band_descriptor' => ['sometimes', 'nullable', 'string'],
+            'rubric.keywords_expected' => ['sometimes', 'nullable', 'array'],
+            'rubric.keywords_expected.*' => ['string', 'max:255'],
+            'rubric.common_mistakes' => ['sometimes', 'nullable', 'array'],
+            'rubric.common_mistakes.*' => ['string', 'max:255'],
+            'rubric.acceptable_alternatives' => ['sometimes', 'nullable', 'array'],
+            'rubric.acceptable_alternatives.*' => ['string', 'max:255'],
+            'rubric.marker_notes' => ['sometimes', 'nullable', 'string'],
         ];
     }
 }
