@@ -21,13 +21,14 @@ Route::prefix('auth')->group(function () {
 
 Route::middleware(['auth:sanctum', 'role:student'])->prefix('student')->group(function () {
     Route::get('/catalog', [CatalogController::class, 'index']);
-    Route::get('/papers', [CatalogController::class, 'index']);
+    Route::get('/papers', [PaperController::class, 'index']);
     Route::get('/papers/{paper}', [PaperController::class, 'show']);
 
     Route::post('/papers/{paper}/attempts', [AttemptController::class, 'store']);
     Route::get('/attempts/{attempt}', [AttemptController::class, 'show'])->can('view', 'attempt');
     Route::put('/attempts/{attempt}/answers', [AttemptController::class, 'updateAnswers'])->can('update', 'attempt');
     Route::post('/attempts/{attempt}/submit', [AttemptController::class, 'submit'])->can('submit', 'attempt');
+    Route::get('/attempts/{attempt}/results', [AttemptController::class, 'result'])->can('review', 'attempt');
     Route::get('/attempts/{attempt}/result', [AttemptController::class, 'result'])->can('review', 'attempt');
     Route::get('/attempts/{attempt}/review', [AttemptController::class, 'review'])->can('review', 'attempt');
 });

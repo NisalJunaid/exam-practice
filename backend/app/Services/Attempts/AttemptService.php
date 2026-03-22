@@ -33,13 +33,13 @@ class AttemptService
                 ]);
             }
 
-            return $attempt->load(['paper.subject', 'paper.questions', 'answers', 'markings']);
+            return $this->getAttempt($attempt);
         });
     }
 
     public function getAttempt(PaperAttempt $attempt): PaperAttempt
     {
-        return $attempt->load(['paper.subject', 'paper.questions', 'answers', 'markings']);
+        return $attempt->load(['paper.subject.examBoard', 'paper.subject.examLevel', 'paper.questions', 'answers', 'markings']);
     }
 
     public function saveAnswers(PaperAttempt $attempt, array $answers): PaperAttempt
@@ -50,7 +50,13 @@ class AttemptService
 
         DB::transaction(function () use ($attempt, $answers) {
             foreach ($answers as $payload) {
-                $answer = $attempt->answers()->where('paper_question_id', Arr::get($payload, 'paper_question_id'))->firstOrFail();
+                $questionId = Arr::get($payload, 'paper_question_id');
+                $answer = $attempt->answers()->where('paper_question_id', $questionId)->first();
+
+                if (! $answer) {
+                    throw new RuntimeException('One or more answers do not belong to this attempt.');
+                }
+
                 $text = trim((string) Arr::get($payload, 'student_answer', ''));
 
                 $answer->update([
@@ -63,21 +69,37 @@ class AttemptService
         return $this->getAttempt($attempt);
     }
 
-    public function submit(PaperAttempt $attempt): PaperAttempt
+    public function submitAttempt(PaperAttempt $attempt): PaperAttempt
     {
         if (! $attempt->isSubmittable()) {
             throw new RuntimeException('This attempt cannot be submitted.');
         }
 
+        $submittedAt = Carbon::now();
+
         $attempt->update([
             'status' => PaperAttemptStatus::Submitted,
-            'submitted_at' => Carbon::now(),
+            'submitted_at' => $submittedAt,
         ]);
 
-        $attempt->answers()->update(['submitted_at' => Carbon::now()]);
+        $attempt->answers()->update(['submitted_at' => $submittedAt]);
 
         ProcessAttemptMarkingJob::dispatchSync($attempt->fresh());
 
         return $this->getAttempt($attempt->fresh());
+    }
+
+    public function ensureResultsAvailable(PaperAttempt $attempt): void
+    {
+        if (! in_array($attempt->status, [PaperAttemptStatus::Completed, PaperAttemptStatus::Failed], true)) {
+            throw new RuntimeException('Results are only available after marking has finished.');
+        }
+    }
+
+    public function ensureReviewAvailable(PaperAttempt $attempt): void
+    {
+        if ($attempt->status !== PaperAttemptStatus::Completed) {
+            throw new RuntimeException('Review is only available after marking has completed successfully.');
+        }
     }
 }
