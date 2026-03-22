@@ -49,4 +49,9 @@ class DocumentImport extends Model
     {
         return $this->belongsTo(Paper::class, 'approved_paper_id');
     }
+
+    public function sourceFiles(): HasMany
+    {
+        return $this->hasMany(PaperSourceFile::class)->orderBy('id');
+    }
 }

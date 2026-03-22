@@ -23,6 +23,9 @@ return new class extends Migration
             $table->foreignId('approved_paper_id')->nullable()->constrained('papers')->nullOnDelete();
             $table->timestamp('processed_at')->nullable();
             $table->timestamps();
+
+            $table->index(['created_by', 'status']);
+            $table->index('approved_paper_id');
         });
 
         Schema::create('document_import_items', function (Blueprint $table) {
@@ -43,6 +46,10 @@ return new class extends Migration
             $table->longText('admin_notes')->nullable();
             $table->json('raw_payload')->nullable();
             $table->timestamps();
+
+            $table->index(['document_import_id', 'order_index']);
+            $table->index(['document_import_id', 'match_status']);
+            $table->index(['question_key', 'match_status']);
         });
     }
 

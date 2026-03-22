@@ -49,6 +49,11 @@ class Paper extends Model
         return $this->hasMany(PaperAttempt::class);
     }
 
+    public function sourceFiles(): HasMany
+    {
+        return $this->hasMany(PaperSourceFile::class)->orderBy('id');
+    }
+
     public function scopePublished(Builder $query): Builder
     {
         return $query->where('is_published', true);

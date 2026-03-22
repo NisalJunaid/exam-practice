@@ -14,15 +14,18 @@ return new class extends Migration
             $table->string('title');
             $table->string('slug')->unique();
             $table->string('paper_code')->nullable();
-            $table->unsignedInteger('year')->nullable();
+            $table->unsignedSmallInteger('year')->nullable();
             $table->string('session')->nullable();
-            $table->unsignedInteger('duration_minutes')->nullable();
+            $table->unsignedSmallInteger('duration_minutes')->nullable();
             $table->unsignedInteger('total_marks')->default(0);
             $table->longText('instructions')->nullable();
             $table->boolean('is_published')->default(false);
             $table->string('source_question_paper_path')->nullable();
             $table->string('source_mark_scheme_path')->nullable();
             $table->timestamps();
+
+            $table->index(['subject_id', 'is_published']);
+            $table->index(['subject_id', 'year']);
         });
 
         Schema::create('paper_questions', function (Blueprint $table) {
@@ -31,13 +34,17 @@ return new class extends Migration
             $table->string('question_number');
             $table->string('question_key')->nullable();
             $table->longText('question_text');
-            $table->longText('reference_answer')->nullable();
+            $table->longText('reference_answer');
             $table->unsignedInteger('max_marks');
             $table->longText('marking_guidelines')->nullable();
             $table->longText('sample_full_mark_answer')->nullable();
             $table->unsignedInteger('order_index')->default(1);
             $table->longText('stem_context')->nullable();
             $table->timestamps();
+
+            $table->unique(['paper_id', 'order_index']);
+            $table->index(['paper_id', 'question_number']);
+            $table->index(['paper_id', 'question_key']);
         });
 
         Schema::create('question_rubrics', function (Blueprint $table) {
@@ -49,6 +56,8 @@ return new class extends Migration
             $table->json('acceptable_alternatives')->nullable();
             $table->longText('marker_notes')->nullable();
             $table->timestamps();
+
+            $table->unique('paper_question_id');
         });
 
         Schema::create('paper_attempts', function (Blueprint $table) {
@@ -63,6 +72,9 @@ return new class extends Migration
             $table->unsignedInteger('total_max_marks');
             $table->longText('marking_summary')->nullable();
             $table->timestamps();
+
+            $table->index(['user_id', 'status']);
+            $table->index(['paper_id', 'status']);
         });
 
         Schema::create('attempt_answers', function (Blueprint $table) {
@@ -73,6 +85,9 @@ return new class extends Migration
             $table->boolean('is_blank')->default(false);
             $table->timestamp('submitted_at')->nullable();
             $table->timestamps();
+
+            $table->unique(['paper_attempt_id', 'paper_question_id']);
+            $table->index(['paper_question_id', 'is_blank']);
         });
 
         Schema::create('attempt_markings', function (Blueprint $table) {
@@ -88,6 +103,9 @@ return new class extends Migration
             $table->json('mistakes')->nullable();
             $table->decimal('ai_confidence', 5, 2)->nullable();
             $table->timestamps();
+
+            $table->unique('attempt_answer_id');
+            $table->index(['paper_attempt_id', 'paper_question_id']);
         });
 
         Schema::create('ai_marking_logs', function (Blueprint $table) {
@@ -101,6 +119,9 @@ return new class extends Migration
             $table->string('status');
             $table->longText('error_message')->nullable();
             $table->timestamps();
+
+            $table->index(['paper_attempt_id', 'status']);
+            $table->index(['provider', 'status']);
         });
     }
 

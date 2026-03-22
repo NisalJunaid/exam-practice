@@ -27,9 +27,13 @@ return new class extends Migration
             $table->foreignId('exam_board_id')->constrained()->cascadeOnDelete();
             $table->foreignId('exam_level_id')->constrained()->cascadeOnDelete();
             $table->string('name');
-            $table->string('slug')->unique();
+            $table->string('slug');
             $table->string('code')->nullable();
             $table->timestamps();
+
+            $table->unique(['exam_board_id', 'exam_level_id', 'slug']);
+            $table->index(['exam_board_id', 'exam_level_id']);
+            $table->index('code');
         });
     }
 

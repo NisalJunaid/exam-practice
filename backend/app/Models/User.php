@@ -41,6 +41,11 @@ class User extends Authenticatable
         return $this->hasMany(DocumentImport::class, 'created_by');
     }
 
+    public function uploadedPaperSourceFiles(): HasMany
+    {
+        return $this->hasMany(PaperSourceFile::class, 'created_by');
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === UserRole::Admin;

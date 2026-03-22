@@ -16,4 +16,14 @@ class PaperAttemptPolicy
     {
         return $attempt->user_id === $user->id;
     }
+
+    public function submit(User $user, PaperAttempt $attempt): bool
+    {
+        return $attempt->user_id === $user->id;
+    }
+
+    public function review(User $user, PaperAttempt $attempt): bool
+    {
+        return $user->isAdmin() || $attempt->user_id === $user->id;
+    }
 }
