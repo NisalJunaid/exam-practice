@@ -28,3 +28,8 @@ export interface CatalogSearchParams {
   session?: string
   q?: string
 }
+
+export interface FilterFieldOption {
+  label: string
+  value: string
+}

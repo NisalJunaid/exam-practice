@@ -1,16 +1,30 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { GraduationCap } from 'lucide-react'
+import { ArrowRight, BookOpenCheck, GraduationCap, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/app/providers/AuthProvider'
 import { FormField } from '@/components/common/FormField'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { loginSchema, type LoginFormValues } from '@/features/auth/schemas'
 import { routes } from '@/lib/constants/routes'
+
+const demoAccounts = [
+  {
+    label: 'Student flow',
+    description: 'Sign in to browse papers, open a paper detail view, and start attempts.',
+    icon: GraduationCap,
+  },
+  {
+    label: 'Admin flow',
+    description: 'Admin routes stay protected while student browsing remains focused and simple.',
+    icon: ShieldCheck,
+  },
+]
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -39,36 +53,56 @@ export function LoginPage() {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+    <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
       <section className="space-y-6">
         <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
-          <GraduationCap className="size-4" />
-          Structured exam practice for students and admins
+          <BookOpenCheck className="size-4" />
+          Frontend auth and paper browsing
         </div>
         <div className="space-y-4">
-          <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">Academic exam workflows with a clean, review-first frontend shell.</h1>
+          <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">Sign in to explore exam papers, filters, and attempt-ready paper details.</h1>
           <p className="max-w-2xl text-base leading-7 text-slate-600">
-            This starter interface wires the authentication, student practice, and admin review surfaces so the application can grow into the full blueprint without reworking the core routing model.
+            The student flow is built around a clean auth experience, typed API integrations, and lightweight transitions into the paper catalog and detail screens.
           </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {demoAccounts.map(({ label, description, icon: Icon }) => (
+            <Card key={label} className="border-slate-200 bg-white/80">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Icon className="size-4 text-blue-700" />
+                  {label}
+                </CardTitle>
+                <CardDescription>{description}</CardDescription>
+              </CardHeader>
+            </Card>
+          ))}
         </div>
       </section>
 
       <Card className="mx-auto w-full max-w-md">
         <CardHeader>
-          <CardTitle>Sign in</CardTitle>
-          <CardDescription>Use a seeded student or admin account to access the corresponding workspace.</CardDescription>
+          <CardTitle>Welcome back</CardTitle>
+          <CardDescription>Enter your credentials to continue to your workspace.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
             <FormField id="email" label="Email" error={form.formState.errors.email?.message}>
-              <Input id="email" type="email" autoComplete="email" {...form.register('email')} />
+              <Input id="email" type="email" autoComplete="email" placeholder="student@example.com" {...form.register('email')} />
             </FormField>
             <FormField id="password" label="Password" error={form.formState.errors.password?.message}>
-              <Input id="password" type="password" autoComplete="current-password" {...form.register('password')} />
+              <Input id="password" type="password" autoComplete="current-password" placeholder="Enter your password" {...form.register('password')} />
             </FormField>
-            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            {error ? (
+              <Alert className="border-red-200 bg-red-50 text-red-700">
+                <AlertTitle>Sign-in failed</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
             <Button disabled={form.formState.isSubmitting} type="submit">
               {form.formState.isSubmitting ? 'Signing in…' : 'Sign in'}
+              <ArrowRight className="size-4" />
             </Button>
             <p className="text-sm text-slate-500">
               Need a student account?{' '}
