@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/common/EmptyState'
 import { PageHeader } from '@/components/common/PageHeader'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -72,6 +73,15 @@ export function AdminEditPaperPage() {
     return <Card><CardContent className="pt-6 text-sm text-slate-600">Loading paper…</CardContent></Card>
   }
 
+  if (paperQuery.isError) {
+    return (
+      <Alert className="border-red-200 bg-red-50 text-red-900">
+        <AlertTitle>Could not load paper</AlertTitle>
+        <AlertDescription>{paperQuery.error.message}</AlertDescription>
+      </Alert>
+    )
+  }
+
   if (!paper) {
     return <Card><CardContent className="pt-6 text-sm text-slate-600">Paper not found.</CardContent></Card>
   }
@@ -101,6 +111,12 @@ export function AdminEditPaperPage() {
 
       <Card>
         <CardContent className="pt-6">
+          {subjectOptionsQuery.isError ? (
+            <Alert className="mb-6 border-amber-200 bg-amber-50 text-amber-900">
+              <AlertTitle>Subject suggestions unavailable</AlertTitle>
+              <AlertDescription>{subjectOptionsQuery.error.message}</AlertDescription>
+            </Alert>
+          ) : null}
           <PaperForm
             isSubmitting={updatePaper.isPending}
             mode="edit"

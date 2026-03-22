@@ -64,3 +64,19 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Exam practice app setup notes
+
+### Local API setup
+
+1. Install PHP dependencies with `composer install`.
+2. Copy `.env.example` to `.env` if needed, then run `php artisan key:generate`.
+3. Configure a database connection in `.env`.
+4. Run `php artisan migrate --seed` to load the exam taxonomy, demo users, and sample papers.
+5. Start the API with `php artisan serve`.
+
+### Integration workflow notes
+
+* The app expects Sanctum bearer tokens from the frontend login and register flows.
+* Admin paper imports currently process synchronously via `ProcessPaperImportJob::dispatchSync(...)` in development, so uploads return a review-ready draft immediately when parsing succeeds.
+* Student attempt submission still queues `MarkPaperAttemptJob`, so if you want asynchronous behaviour locally make sure your queue driver and worker are configured before testing the marking pipeline.

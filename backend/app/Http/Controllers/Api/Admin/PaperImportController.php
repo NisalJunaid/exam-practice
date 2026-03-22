@@ -14,6 +14,7 @@ use App\Models\DocumentImportItem;
 use App\Services\Imports\ImportApprovalService;
 use App\Services\Imports\PaperImportService;
 use Illuminate\Http\JsonResponse;
+use RuntimeException;
 
 class PaperImportController extends Controller
 {
@@ -64,7 +65,12 @@ class PaperImportController extends Controller
     public function approve(ApproveDocumentImportRequest $request, DocumentImport $import, ImportApprovalService $service): JsonResponse
     {
         $this->authorize('update', $import);
-        $paper = $service->approve($import);
+
+        try {
+            $paper = $service->approve($import);
+        } catch (RuntimeException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
 
         return response()->json([
             'message' => 'Import approved into draft paper records. Publication remains manual.',

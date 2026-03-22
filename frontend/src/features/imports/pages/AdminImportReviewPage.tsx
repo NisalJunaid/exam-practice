@@ -79,7 +79,7 @@ export function AdminImportReviewPage() {
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null
   const selectedDraft = selectedItem ? drafts[selectedItem.id] : null
   const hasWarnings = counts.ambiguous > 0 || counts.unmatched > 0
-  const readyForApproval = importQuery.data?.status === 'needs_review' && dirtyItemIds.length === 0 && !approveImport.isPending
+  const readyForApproval = importQuery.data?.status === 'needs_review' && dirtyItemIds.length === 0 && !hasWarnings && !approveImport.isPending
 
   async function saveSingleDraft(draft: EditableImportItem) {
     const original = items.find((item) => item.id === draft.id)
@@ -180,9 +180,10 @@ export function AdminImportReviewPage() {
   }
 
   const documentImport = importQuery.data
+  const approvedPaperId = documentImport.approvedPaperId
   const metadataEntries = Object.entries(documentImport.metadata ?? {})
   const isProcessing = documentImport.status === 'processing' || documentImport.status === 'uploaded'
-  const hasApprovedPaper = Boolean(documentImport.approvedPaperId)
+  const hasApprovedPaper = Boolean(approvedPaperId)
 
   return (
     <div className="space-y-8">
@@ -245,9 +246,9 @@ export function AdminImportReviewPage() {
         <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
           <AlertTitle>Paper import complete</AlertTitle>
           <AlertDescription>
-            This import has already created paper #{documentImport.approvedPaperId}. You can continue auditing the draft record or open the final paper in admin.
+            This import has already created paper #{approvedPaperId}. You can continue auditing the draft record or open the final paper in admin.
             {' '}
-            <Link className="font-medium underline" to={routes.admin.papers.byId(documentImport.approvedPaperId)}>Open final paper</Link>
+            {approvedPaperId ? <Link className="font-medium underline" to={routes.admin.papers.byId(approvedPaperId)}>Open final paper</Link> : null}
           </AlertDescription>
         </Alert>
       ) : null}

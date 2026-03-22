@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 
 import { PageHeader } from '@/components/common/PageHeader'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { PaperForm } from '@/features/admin/PaperForm'
 import { useCreateAdminPaper, useAdminSubjectOptions } from '@/features/admin/hooks'
@@ -41,6 +42,12 @@ export function AdminCreatePaperPage() {
 
       <Card>
         <CardContent className="pt-6">
+          {subjectOptionsQuery.isError ? (
+            <Alert className="mb-6 border-amber-200 bg-amber-50 text-amber-900">
+              <AlertTitle>Subject suggestions unavailable</AlertTitle>
+              <AlertDescription>{subjectOptionsQuery.error.message}</AlertDescription>
+            </Alert>
+          ) : null}
           <PaperForm
             isSubmitting={createPaper.isPending}
             mode="create"

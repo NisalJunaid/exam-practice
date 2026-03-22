@@ -22,6 +22,14 @@ class ImportApprovalService
             throw new RuntimeException('Only draft imports in needs_review can be approved.');
         }
 
+        $unresolvedItems = $import->items()
+            ->whereNotIn('match_status', [ImportMatchStatus::Matched, ImportMatchStatus::Resolved])
+            ->count();
+
+        if ($unresolvedItems > 0) {
+            throw new RuntimeException('Resolve all ambiguous or unmatched import items before approval.');
+        }
+
         return DB::transaction(function () use ($import) {
             $paper = $this->createPaperFromImport($import);
             $items = $import->items()

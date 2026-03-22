@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { PageHeader } from '@/components/common/PageHeader'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -42,6 +43,15 @@ export function AdminEditQuestionPage() {
 
   if (questionQuery.isLoading) {
     return <Card><CardContent className="pt-6 text-sm text-slate-600">Loading question…</CardContent></Card>
+  }
+
+  if (questionQuery.isError) {
+    return (
+      <Alert className="border-red-200 bg-red-50 text-red-900">
+        <AlertTitle>Could not load question</AlertTitle>
+        <AlertDescription>{questionQuery.error.message}</AlertDescription>
+      </Alert>
+    )
   }
 
   if (!question) {
