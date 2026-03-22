@@ -9,46 +9,34 @@ use App\Http\Requests\Admin\StoreDocumentImportRequest;
 use App\Http\Requests\Admin\UpdateDocumentImportItemRequest;
 use App\Http\Resources\DocumentImportItemResource;
 use App\Http\Resources\DocumentImportResource;
-use App\Jobs\ProcessPaperImportJob;
 use App\Models\DocumentImport;
 use App\Models\DocumentImportItem;
 use App\Services\Imports\ImportApprovalService;
+use App\Services\Imports\PaperImportService;
 use Illuminate\Http\JsonResponse;
 
 class PaperImportController extends Controller
 {
     public function index(): JsonResponse
     {
-        $imports = DocumentImport::query()->with('items')->latest()->get();
+        $imports = DocumentImport::query()->withCount('items')->latest()->get();
 
         return response()->json(['data' => DocumentImportResource::collection($imports)]);
     }
 
-    public function store(StoreDocumentImportRequest $request): JsonResponse
+    public function store(StoreDocumentImportRequest $request, PaperImportService $service): JsonResponse
     {
-        $questionPaper = $request->file('question_paper');
-        $markScheme = $request->file('mark_scheme');
+        $import = $service->createImportFromUpload($request->validated(), $request->user());
+        $service->queueProcessing($import);
 
-        $import = DocumentImport::create([
-            'created_by' => $request->user()->id,
-            'status' => DocumentImportStatus::Uploaded,
-            'question_paper_path' => $questionPaper->store('imports/question-papers'),
-            'question_paper_name' => $questionPaper->getClientOriginalName(),
-            'mark_scheme_path' => $markScheme->store('imports/mark-schemes'),
-            'mark_scheme_name' => $markScheme->getClientOriginalName(),
-        ]);
-
-        $import->update(['status' => DocumentImportStatus::Processing]);
-        ProcessPaperImportJob::dispatchSync($import->fresh());
-
-        return response()->json(['data' => new DocumentImportResource($import->fresh('items'))], 201);
+        return response()->json(['data' => new DocumentImportResource($import->fresh(['items', 'sourceFiles']))], 201);
     }
 
     public function show(DocumentImport $import): JsonResponse
     {
         $this->authorize('view', $import);
 
-        return response()->json(['data' => new DocumentImportResource($import->load('items'))]);
+        return response()->json(['data' => new DocumentImportResource($import->load(['items', 'sourceFiles']))]);
     }
 
     public function items(DocumentImport $import): JsonResponse
@@ -60,9 +48,15 @@ class PaperImportController extends Controller
 
     public function updateItem(UpdateDocumentImportItemRequest $request, DocumentImportItem $item): JsonResponse
     {
-        $this->authorize('update', $item->documentImport);
+        $import = $item->documentImport;
+        $this->authorize('update', $import);
+
+        if ($import->status !== DocumentImportStatus::NeedsReview) {
+            abort(422, 'Only imports in needs_review can be edited.');
+        }
 
         $item->update($request->validated());
+        $import->update(['summary' => array_merge($import->summary ?? [], $this->summarizeItems($import))]);
 
         return response()->json(['data' => new DocumentImportItemResource($item->fresh())]);
     }
@@ -73,11 +67,25 @@ class PaperImportController extends Controller
         $paper = $service->approve($import);
 
         return response()->json([
-            'message' => 'Import approved and published.',
+            'message' => 'Import approved into draft paper records. Publication remains manual.',
             'data' => [
                 'paperId' => $paper->id,
                 'paperTitle' => $paper->title,
+                'isPublished' => $paper->is_published,
             ],
         ]);
+    }
+
+    private function summarizeItems(DocumentImport $import): array
+    {
+        return [
+            'matchedItems' => $import->items()->where('match_status', 'matched')->count(),
+            'paperOnlyItems' => $import->items()->where('match_status', 'paper_only')->count(),
+            'schemeOnlyItems' => $import->items()->where('match_status', 'scheme_only')->count(),
+            'ambiguousItems' => $import->items()->where('match_status', 'ambiguous')->count(),
+            'resolvedItems' => $import->items()->where('match_status', 'resolved')->count(),
+            'totalItems' => $import->items()->count(),
+            'approvedItems' => $import->items()->where('is_approved', true)->count(),
+        ];
     }
 }
