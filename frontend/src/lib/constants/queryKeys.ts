@@ -22,5 +22,6 @@ export const queryKeys = {
     question: (questionId: string | number) => ['api', 'admin', 'questions', questionId] as const,
     imports: ['api', 'admin', 'imports'] as const,
     import: (importId: string | number) => ['api', 'admin', 'imports', importId] as const,
+    importItems: (importId: string | number) => ['api', 'admin', 'imports', importId, 'items'] as const,
   },
 } as const
