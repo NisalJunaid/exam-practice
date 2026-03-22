@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
 
 import { adminApi } from '@/features/admin/api'
 import { queryKeys } from '@/lib/constants/queryKeys'
+
+import { buildSubjectOptions } from './utils'
 
 export function useAdminPapers() {
   return useQuery({
@@ -26,12 +29,22 @@ export function useAdminQuestion(questionId: string) {
   })
 }
 
+export function useAdminSubjectOptions() {
+  const papersQuery = useAdminPapers()
+
+  return {
+    ...papersQuery,
+    data: useMemo(() => buildSubjectOptions(papersQuery.data), [papersQuery.data]),
+  }
+}
+
 export function useCreateAdminPaper() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: adminApi.createPaper,
-    onSuccess: () => {
+    onSuccess: (paper) => {
+      queryClient.setQueryData(queryKeys.admin.paper(paper.id), paper)
       void queryClient.invalidateQueries({ queryKey: queryKeys.admin.papers })
     },
   })
@@ -61,6 +74,31 @@ export function usePublishPaper(paperId: string) {
   })
 }
 
+export function useUnpublishPaper(paperId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => adminApi.unpublishPaper(paperId),
+    onSuccess: (paper) => {
+      queryClient.setQueryData(queryKeys.admin.paper(paper.id), paper)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.papers })
+    },
+  })
+}
+
+export function useCreateAdminQuestion(paperId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof adminApi.createQuestion>[1]) => adminApi.createQuestion(paperId, payload),
+    onSuccess: (question) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.paper(question.paperId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.papers })
+      queryClient.setQueryData(queryKeys.admin.question(question.id), question)
+    },
+  })
+}
+
 export function useUpdateAdminQuestion(questionId: string) {
   const queryClient = useQueryClient()
 
@@ -68,6 +106,20 @@ export function useUpdateAdminQuestion(questionId: string) {
     mutationFn: (payload: Parameters<typeof adminApi.updateQuestion>[1]) => adminApi.updateQuestion(questionId, payload),
     onSuccess: (question) => {
       queryClient.setQueryData(queryKeys.admin.question(question.id), question)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.paper(question.paperId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.papers })
+    },
+  })
+}
+
+export function useUpdateQuestionRubric(questionId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof adminApi.updateRubric>[1]) => adminApi.updateRubric(questionId, payload),
+    onSuccess: (question) => {
+      queryClient.setQueryData(queryKeys.admin.question(question.id), question)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.paper(question.paperId) })
     },
   })
 }

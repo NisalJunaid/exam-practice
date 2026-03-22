@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { AppRouter } from '@/app/router'
 import { AuthProvider } from '@/app/providers/AuthProvider'
+import { AppRouter } from '@/app/router'
+import { ToastProvider } from '@/lib/toast/ToastProvider'
 
 export function AppProviders() {
   const [queryClient] = useState(
@@ -21,7 +22,9 @@ export function AppProviders() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppRouter />
+        <ToastProvider>
+          <AppRouter />
+        </ToastProvider>
       </AuthProvider>
     </QueryClientProvider>
   )

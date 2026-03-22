@@ -22,6 +22,7 @@ export const endpoints = {
     papers: '/admin/papers',
     paper: (paperId: string | number) => `/admin/papers/${paperId}`,
     publish: (paperId: string | number) => `/admin/papers/${paperId}/publish`,
+    unpublish: (paperId: string | number) => `/admin/papers/${paperId}/unpublish`,
     createQuestion: (paperId: string | number) => `/admin/papers/${paperId}/questions`,
     question: (questionId: string | number) => `/admin/questions/${questionId}`,
     updateRubric: (questionId: string | number) => `/admin/questions/${questionId}/rubric`,
