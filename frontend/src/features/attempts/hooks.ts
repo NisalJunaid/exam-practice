@@ -8,6 +8,7 @@ export function useAttemptDetail(attemptId: string) {
     queryKey: queryKeys.attempts.detail(attemptId),
     queryFn: () => attemptsApi.detail(attemptId),
     enabled: Boolean(attemptId),
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     staleTime: 10_000,
     refetchInterval: (query) => {

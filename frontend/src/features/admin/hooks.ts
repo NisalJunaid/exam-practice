@@ -108,7 +108,7 @@ export function useUpdateAdminQuestion(questionId: string) {
       queryClient.setQueryData(queryKeys.admin.question(question.id), question)
       void queryClient.invalidateQueries({ queryKey: queryKeys.admin.paper(question.paperId) })
       void queryClient.invalidateQueries({ queryKey: queryKeys.admin.papers })
-      void queryClient.invalidateQueries({ queryKey: ['api', 'attempts'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.attempts.all })
     },
   })
 }

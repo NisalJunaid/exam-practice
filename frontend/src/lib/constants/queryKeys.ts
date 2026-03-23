@@ -12,6 +12,7 @@ export const queryKeys = {
     detail: (paperId: string | number) => ['api', 'papers', 'detail', paperId] as const,
   },
   attempts: {
+    all: ['api', 'attempts'] as const,
     detail: (attemptId: string | number) => ['api', 'attempts', 'detail', attemptId] as const,
     results: (attemptId: string | number) => ['api', 'attempts', 'results', attemptId] as const,
     review: (attemptId: string | number) => ['api', 'attempts', 'review', attemptId] as const,

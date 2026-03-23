@@ -43,7 +43,7 @@ export interface AttemptQuestion {
   questionKey: string | null
   questionText: string
   questionType: string
-  answerInteractionType: AnswerInteractionType
+  answerInteractionType: AnswerInteractionType | null
   interactionConfig: Record<string, unknown>
   stemContext: string | null
   maxMarks: number

@@ -276,6 +276,37 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
             ->assertJsonPath('data.questions.0.interactionConfig.fields.1.label', 'Evidence');
     }
 
+    public function test_attempt_payload_includes_canvas_draw_metadata_question_key_and_visual_references(): void
+    {
+        [$student, $paper] = $this->createStudentWithPublishedPaper(includeVisual: true);
+        $question = $paper->questions()->orderBy('order_index')->firstOrFail();
+        $question->update([
+            'question_type' => 'diagram_label',
+            'answer_interaction_type' => 'canvas_draw',
+            'interaction_config' => [
+                'canvas' => [
+                    'width' => 960,
+                    'height' => 540,
+                    'background_mode' => 'plain',
+                    'allow_pen' => true,
+                    'allow_eraser' => true,
+                    'allow_clear' => true,
+                    'allow_grid' => false,
+                ],
+            ],
+        ]);
+
+        Sanctum::actingAs($student);
+
+        $this->postJson("/api/student/papers/{$paper->id}/attempts")
+            ->assertCreated()
+            ->assertJsonPath('data.questions.0.questionKey', '1(a)')
+            ->assertJsonPath('data.questions.0.answerInteractionType', 'canvas_draw')
+            ->assertJsonPath('data.questions.0.interactionConfig.canvas.width', 960)
+            ->assertJsonPath('data.questions.0.visualAssets.0.assetRole', 'diagram')
+            ->assertJsonPath('data.questions.0.visualAssets.0.altText', 'Leaf diagram');
+    }
+
     public function test_review_payload_contains_answer_asset_preview_urls_and_question_visual_urls(): void
     {
         [$student, $paper] = $this->createStudentWithPublishedPaper(includeVisual: true);

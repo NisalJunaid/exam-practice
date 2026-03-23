@@ -1,10 +1,19 @@
-import type { AttemptAnswerDraft, AttemptQuestion, AttemptStructuredAnswer } from './types'
+import type { AnswerInteractionType, AttemptAnswerDraft, AttemptQuestion, AttemptStructuredAnswer } from './types'
+
+type InteractionResolutionSource = 'explicit' | 'fallback'
+
+interface AttemptQuestionInteractionResolution {
+  source: InteractionResolutionSource
+  type: AnswerInteractionType
+}
+
+const warnedFallbacks = new Set<string>()
 
 export function getQuestionDraftSignature(question: AttemptQuestion) {
   return JSON.stringify({
     id: question.id,
     updatedAt: question.updatedAt,
-    answerInteractionType: question.answerInteractionType ?? null,
+    answerInteractionType: resolveAttemptQuestionInteraction(question).type,
     interactionConfig: question.interactionConfig ?? {},
   })
 }
@@ -35,6 +44,54 @@ export function sanitizeStructuredAnswerForApi(value: AttemptStructuredAnswer | 
   const next = JSON.parse(JSON.stringify(value)) as AttemptStructuredAnswer
   stripClientKeys(next)
   return hasStructuredValue(next) ? next : null
+}
+
+export function resolveAttemptQuestionInteraction(question: Pick<AttemptQuestion, 'id' | 'updatedAt' | 'questionKey' | 'questionNumber' | 'questionType' | 'answerInteractionType' | 'requiresVisualReference'>): AttemptQuestionInteractionResolution {
+  if (question.answerInteractionType) {
+    return { source: 'explicit', type: question.answerInteractionType }
+  }
+
+  const fallbackType = inferAnswerInteractionType(question.questionType, question.requiresVisualReference)
+  warnInteractionFallback(question, fallbackType)
+
+  return {
+    source: 'fallback',
+    type: fallbackType,
+  }
+}
+
+function inferAnswerInteractionType(questionType: string, requiresVisualReference: boolean): AnswerInteractionType {
+  switch (questionType) {
+    case 'short_answer':
+      return 'short_text'
+    case 'structured':
+    case 'essay':
+      return 'long_text'
+    case 'table':
+      return 'table_input'
+    case 'calculation':
+      return 'calculation_with_working'
+    case 'diagram_label':
+      return requiresVisualReference ? 'diagram_annotation' : 'canvas_draw'
+    case 'multiple_part':
+      return 'multi_field'
+    default:
+      return 'long_text'
+  }
+}
+
+function warnInteractionFallback(question: Pick<AttemptQuestion, 'id' | 'updatedAt' | 'questionKey' | 'questionNumber' | 'questionType'>, fallbackType: AnswerInteractionType) {
+  if (!import.meta.env.DEV) return
+
+  const warningKey = `${question.id}:${question.updatedAt ?? 'na'}:${fallbackType}`
+  if (warnedFallbacks.has(warningKey)) return
+
+  warnedFallbacks.add(warningKey)
+
+  const label = question.questionKey?.trim() || question.questionNumber?.trim() || String(question.id)
+  console.warn(
+    `[attempt-renderer] Missing answer_interaction_type for question ${label}. Falling back from question_type=${question.questionType} to ${fallbackType}.`,
+  )
 }
 
 function stripClientKeys(value: unknown): void {
