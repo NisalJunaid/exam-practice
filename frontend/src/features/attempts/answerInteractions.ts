@@ -1,9 +1,19 @@
 import type { AttemptAnswerDraft, AttemptQuestion, AttemptStructuredAnswer } from './types'
 
+export function getQuestionDraftSignature(question: AttemptQuestion) {
+  return JSON.stringify({
+    id: question.id,
+    updatedAt: question.updatedAt,
+    answerInteractionType: question.answerInteractionType ?? null,
+    interactionConfig: question.interactionConfig ?? {},
+  })
+}
+
 export function createDraftFromQuestion(question: AttemptQuestion): AttemptAnswerDraft {
   return {
     studentAnswer: question.studentAnswer ?? '',
     structuredAnswer: question.structuredAnswer ?? null,
+    clientSignature: getQuestionDraftSignature(question),
   }
 }
 

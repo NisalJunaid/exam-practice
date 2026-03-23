@@ -51,6 +51,7 @@ class AttemptReviewBuilder
                     'structuredAnswer' => $answer?->structured_answer,
                     'answerAssets' => AttemptAnswerAssetResource::collection($answer?->assets ?? collect())->resolve(),
                     'isBlank' => $answer?->is_blank ?? true,
+                    'updatedAt' => optional($question->updated_at)->toIso8601String(),
                     'awardedMarks' => $marking?->awarded_marks,
                     'maxMarks' => $question->max_marks,
                     'reasoning' => $marking?->reasoning,

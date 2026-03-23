@@ -5,6 +5,7 @@ namespace App\Services\Attempts;
 use App\Models\AttemptAnswerAsset;
 use App\Models\PaperAttempt;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 class AttemptAnswerAssetService
@@ -19,13 +20,33 @@ class AttemptAnswerAssetService
 
         $path = $file->store("attempt-answers/{$attempt->id}", 'public');
 
-        return $answer->assets()->create([
+        $replaceExisting = (bool) ($metadata['replace_existing'] ?? true);
+
+        if ($replaceExisting) {
+            $answer->assets()
+                ->where('asset_type', $assetType)
+                ->get()
+                ->each(function (AttemptAnswerAsset $asset): void {
+                    if (filled($asset->file_path)) {
+                        Storage::disk($asset->disk)->delete($asset->file_path);
+                    }
+
+                    $asset->delete();
+                });
+        }
+
+        $asset = $answer->assets()->create([
             'asset_type' => $assetType,
             'disk' => 'public',
             'file_path' => $path,
             'original_name' => $file->getClientOriginalName(),
             'mime_type' => $file->getMimeType(),
-            'metadata' => $metadata,
+            'metadata' => array_merge($metadata, [
+                'paper_question_id' => $paperQuestionId,
+                'attempt_id' => $attempt->id,
+            ]),
         ]);
+
+        return $asset->fresh();
     }
 }

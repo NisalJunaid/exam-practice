@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { Eraser, PenLine, Redo2, Trash2, Undo2, Upload } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { Eraser, ImageOff, PenLine, Redo2, Trash2, Undo2, Upload } from 'lucide-react'
 
+import { AnswerAssetPreview } from '@/components/answers/AnswerAssetPreview'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +17,7 @@ interface Props {
   editable: boolean
   onChange: (draft: AttemptAnswerDraft) => void
   onUploadAsset: (questionId: number, assetType: string, file: File, metadata?: Record<string, unknown>) => Promise<AttemptAnswerAsset>
+  onUploadStateChange?: (questionId: number, status: 'idle' | 'uploading' | 'error') => void
 }
 
 interface CanvasConfig {
@@ -38,9 +40,37 @@ function getTextResponseConfig(config: Record<string, unknown>): TextResponseCon
   return value && typeof value === 'object' ? (value as TextResponseConfig) : {}
 }
 
-export function AnswerInteractionRenderer({ question, draft, editable, onChange, onUploadAsset }: Props) {
+function mergeDraft(draft: AttemptAnswerDraft, structuredAnswer: Record<string, unknown>) {
+  return {
+    ...draft,
+    structuredAnswer: {
+      ...(draft.structuredAnswer ?? {}),
+      ...structuredAnswer,
+    },
+  }
+}
+
+function resolveCurrentAsset(question: AttemptQuestion, draft: AttemptAnswerDraft, keys: string[]) {
+  const structured = draft.structuredAnswer ?? {}
+  const requestedIds = keys
+    .map((key) => Number(structured[key] ?? 0))
+    .filter((value) => Number.isFinite(value) && value > 0)
+
+  for (const assetId of requestedIds) {
+    const match = question.answerAssets.find((asset) => asset.id === assetId)
+    if (match) return match
+  }
+
+  return question.answerAssets[0] ?? null
+}
+
+export function AnswerInteractionRenderer({ question, draft, editable, onChange, onUploadAsset, onUploadStateChange }: Props) {
   const type = question.answerInteractionType
   const config = question.interactionConfig ?? {}
+
+  if (!type) {
+    return <TextAnswer editable={editable} multiline value={draft.studentAnswer} onChange={(studentAnswer) => onChange({ ...draft, studentAnswer })} />
+  }
 
   switch (type) {
     case 'short_text':
@@ -61,20 +91,23 @@ export function AnswerInteractionRenderer({ question, draft, editable, onChange,
     case 'calculation_with_working':
       return <CalculationInput config={config} draft={draft} editable={editable} onChange={onChange} />
     case 'canvas_draw':
-    case 'graph_plot': {
-      const canvasConfig = getCanvasConfig(config)
-      return <CanvasAssetInput assetType={type === 'graph_plot' ? 'graph' : 'drawing'} backgroundMode={type === 'graph_plot' ? 'graph' : String(canvasConfig.background_mode ?? 'plain')} question={question} draft={draft} editable={editable} onChange={onChange} onUploadAsset={onUploadAsset} />
-    }
+      return <CanvasAssetInput assetKey="drawing_asset_id" assetType="drawing" backgroundMode={String(getCanvasConfig(config).background_mode ?? 'plain')} draft={draft} editable={editable} onChange={onChange} onUploadAsset={onUploadAsset} onUploadStateChange={onUploadStateChange} question={question} />
+    case 'graph_plot':
+      return <CanvasAssetInput assetKey="drawing_asset_id" assetType="graph" backgroundMode="graph" draft={draft} editable={editable} onChange={onChange} onUploadAsset={onUploadAsset} onUploadStateChange={onUploadStateChange} question={question} />
     case 'diagram_annotation':
-      return <CanvasAssetInput assetType="annotation" backgroundMode="plain" backgroundImage={question.visualAssets[0]?.url ?? null} question={question} draft={draft} editable={editable} onChange={onChange} onUploadAsset={onUploadAsset} />
+      return <CanvasAssetInput assetKey="annotation_asset_id" assetType="annotation" backgroundImage={question.visualAssets[0]?.url ?? null} backgroundMode="plain" draft={draft} editable={editable} onChange={onChange} onUploadAsset={onUploadAsset} onUploadStateChange={onUploadStateChange} question={question} transparentCanvas />
     case 'canvas_plus_text':
-      return <CanvasPlusTextInput question={question} config={config} draft={draft} editable={editable} onChange={onChange} onUploadAsset={onUploadAsset} />
+      return <CanvasPlusTextInput draft={draft} editable={editable} onChange={onChange} onUploadAsset={onUploadAsset} onUploadStateChange={onUploadStateChange} question={question} />
     case 'image_upload':
       return <ImageUploadInput draft={draft} editable={editable} onChange={onChange} onUploadAsset={onUploadAsset} question={question} />
     case 'matching':
       return <MatchingInput config={config} draft={draft} editable={editable} onChange={onChange} />
     default:
-      return <TextAnswer editable={editable} multiline value={draft.studentAnswer} onChange={(studentAnswer) => onChange({ ...draft, studentAnswer })} />
+      return (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          This interaction type is not supported yet: <strong>{type}</strong>.
+        </div>
+      )
   }
 }
 
@@ -93,11 +126,11 @@ function SelectSingleInput({ config, draft, editable, onChange }: { config: Reco
     <div className="grid gap-3">
       {options.length <= 4 ? options.map((option) => (
         <label className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm" key={option}>
-          <input checked={selected === option} disabled={!editable} name="single-select" onChange={() => onChange({ studentAnswer: option, structuredAnswer: { value: option } })} type="radio" />
+          <input checked={selected === option} disabled={!editable} name="single-select" onChange={() => onChange({ ...draft, studentAnswer: option, structuredAnswer: { value: option } })} type="radio" />
           <span>{option}</span>
         </label>
       )) : (
-        <select className="h-12 rounded-lg border border-slate-200 px-3 text-sm" disabled={!editable} onChange={(event) => onChange({ studentAnswer: event.target.value, structuredAnswer: { value: event.target.value } })} value={selected}>
+        <select className="h-12 rounded-lg border border-slate-200 px-3 text-sm" disabled={!editable} onChange={(event) => onChange({ ...draft, studentAnswer: event.target.value, structuredAnswer: { value: event.target.value } })} value={selected}>
           <option value="">Select an option</option>
           {options.map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
@@ -121,7 +154,7 @@ function SelectMultipleInput({ config, draft, editable, onChange }: { config: Re
               if (event.target.checked) next.add(option)
               else next.delete(option)
               const selected = [...next]
-              onChange({ studentAnswer: selected.join(', '), structuredAnswer: { values: selected } })
+              onChange({ ...draft, studentAnswer: selected.join(', '), structuredAnswer: { values: selected } })
             }}
             type="checkbox"
           />
@@ -140,7 +173,7 @@ function MultiFieldInput({ config, draft, editable, onChange }: { config: Record
       {fields.map((field) => (
         <div className="grid gap-2" key={field.key}>
           <Label>{field.label}</Label>
-          <Input disabled={!editable} onChange={(event) => onChange({ studentAnswer: draft.studentAnswer, structuredAnswer: { fields: { ...current, [field.key]: event.target.value } } })} value={current[field.key] ?? ''} />
+          <Input disabled={!editable} onChange={(event) => onChange({ ...draft, structuredAnswer: { fields: { ...current, [field.key]: event.target.value } } })} value={current[field.key] ?? ''} />
         </div>
       ))}
     </div>
@@ -164,7 +197,7 @@ function TableInput({ config, draft, editable, onChange }: { config: Record<stri
                 if (readonly) return <TableCell key={key}>{String(row[key] ?? '')}</TableCell>
                 return (
                   <TableCell key={key}>
-                    <Input disabled={!editable} onChange={(event) => onChange({ studentAnswer: draft.studentAnswer, structuredAnswer: { rows: { ...current, [String(row.key)]: event.target.value } } })} value={current[String(row.key)] ?? ''} />
+                    <Input disabled={!editable} onChange={(event) => onChange({ ...draft, structuredAnswer: { rows: { ...current, [String(row.key)]: event.target.value } } })} value={current[String(row.key)] ?? ''} />
                   </TableCell>
                 )
               })}
@@ -184,34 +217,33 @@ function CalculationInput({ config, draft, editable, onChange }: { config: Recor
     <div className="grid gap-4">
       <div className="grid gap-2">
         <Label>{finalLabel}</Label>
-        <Input disabled={!editable} onChange={(event) => onChange({ studentAnswer: event.target.value, structuredAnswer: { ...current, final_answer: event.target.value } })} value={String(current.final_answer ?? '')} />
+        <Input disabled={!editable} onChange={(event) => onChange({ ...draft, studentAnswer: event.target.value, structuredAnswer: { ...current, final_answer: event.target.value } })} value={String(current.final_answer ?? '')} />
       </div>
       <div className="grid gap-2">
         <Label>{workingLabel}</Label>
-        <Textarea className="min-h-[14rem]" disabled={!editable} onChange={(event) => onChange({ studentAnswer: draft.studentAnswer, structuredAnswer: { ...current, working: event.target.value } })} value={String(current.working ?? '')} />
+        <Textarea className="min-h-[14rem]" disabled={!editable} onChange={(event) => onChange({ ...draft, structuredAnswer: { ...current, working: event.target.value } })} value={String(current.working ?? '')} />
       </div>
     </div>
   )
 }
 
-function CanvasPlusTextInput({ config, draft, editable, onChange, onUploadAsset, question }: Props) {
+function CanvasPlusTextInput({ draft, editable, onChange, onUploadAsset, onUploadStateChange, question }: Props) {
   const canvasConfig = getCanvasConfig(question.interactionConfig)
-  const textConfig = getTextResponseConfig(config)
+  const textConfig = getTextResponseConfig(question.interactionConfig)
 
   return (
     <div className="grid gap-4">
-      <CanvasAssetInput assetType="drawing" backgroundMode={String(canvasConfig.background_mode ?? 'plain')} question={question} draft={draft} editable={editable} onChange={onChange} onUploadAsset={onUploadAsset} />
+      <CanvasAssetInput assetKey="drawing_asset_id" assetType="drawing" backgroundMode={String(canvasConfig.background_mode ?? 'plain')} draft={draft} editable={editable} onChange={onChange} onUploadAsset={onUploadAsset} onUploadStateChange={onUploadStateChange} question={question} />
       <div className="grid gap-2">
         <Label>{String(textConfig.label ?? 'Explanation / notes')}</Label>
-        <Textarea className="min-h-[8rem]" disabled={!editable} onChange={(event) => onChange({ studentAnswer: draft.studentAnswer, structuredAnswer: { ...(draft.structuredAnswer ?? {}), text: event.target.value } })} value={String(draft.structuredAnswer?.text ?? '')} />
+        <Textarea className="min-h-[8rem]" disabled={!editable} onChange={(event) => onChange(mergeDraft(draft, { text: event.target.value }))} value={String(draft.structuredAnswer?.text ?? '')} />
       </div>
     </div>
   )
 }
 
 function ImageUploadInput({ question, draft, editable, onChange, onUploadAsset }: Props) {
-  const currentAssetId = Number(draft.structuredAnswer?.upload_asset_id ?? 0)
-  const currentAsset = question.answerAssets.find((asset) => asset.id === currentAssetId) ?? question.answerAssets[0]
+  const currentAsset = resolveCurrentAsset(question, draft, ['upload_asset_id'])
   return (
     <div className="grid gap-4">
       <div className="rounded-2xl border border-dashed border-slate-300 p-4">
@@ -221,13 +253,14 @@ function ImageUploadInput({ question, draft, editable, onChange, onUploadAsset }
           <input className="hidden" disabled={!editable} type="file" accept="image/*" onChange={async (event) => {
             const file = event.target.files?.[0]
             if (!file) return
-            const asset = await onUploadAsset(question.id, 'upload', file)
-            onChange({ studentAnswer: draft.studentAnswer, structuredAnswer: { ...(draft.structuredAnswer ?? {}), upload_asset_id: asset.id } })
+            const asset = await onUploadAsset(question.id, 'upload', file, { replace_existing: true, interaction_type: question.answerInteractionType })
+            onChange(mergeDraft(draft, { upload_asset_id: asset.id }))
+            event.target.value = ''
           }} />
         </label>
       </div>
-      {currentAsset?.url ? <img alt="Uploaded answer" className="max-h-80 rounded-2xl border border-slate-200 object-contain" src={currentAsset.url} /> : null}
-      <Textarea className="min-h-[8rem]" disabled={!editable} onChange={(event) => onChange({ studentAnswer: draft.studentAnswer, structuredAnswer: { ...(draft.structuredAnswer ?? {}), notes: event.target.value } })} placeholder="Optional notes about the uploaded answer" value={String(draft.structuredAnswer?.notes ?? '')} />
+      {currentAsset ? <AnswerAssetPreview asset={currentAsset} /> : null}
+      <Textarea className="min-h-[8rem]" disabled={!editable} onChange={(event) => onChange(mergeDraft(draft, { notes: event.target.value }))} placeholder="Optional notes about the uploaded answer" value={String(draft.structuredAnswer?.notes ?? '')} />
     </div>
   )
 }
@@ -242,7 +275,7 @@ function MatchingInput({ config, draft, editable, onChange }: { config: Record<s
         return (
           <div className="grid gap-2 md:grid-cols-[1fr_220px] md:items-center" key={key}>
             <Label>{pair.left}</Label>
-            <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" disabled={!editable} onChange={(event) => onChange({ studentAnswer: draft.studentAnswer, structuredAnswer: { matches: { ...matches, [key]: event.target.value } } })} value={matches[key] ?? ''}>
+            <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" disabled={!editable} onChange={(event) => onChange({ ...draft, structuredAnswer: { matches: { ...matches, [key]: event.target.value } } })} value={matches[key] ?? ''}>
               <option value="">Select</option>
               {(pair.rightOptions ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
@@ -253,40 +286,103 @@ function MatchingInput({ config, draft, editable, onChange }: { config: Record<s
   )
 }
 
+async function loadImage(src: string) {
+  const image = new Image()
+  image.crossOrigin = 'anonymous'
+
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve()
+    image.onerror = () => reject(new Error('Could not load image.'))
+    image.src = src
+  })
+
+  return image
+}
+
 function CanvasAssetInput({
   question,
   draft,
   editable,
   onChange,
   onUploadAsset,
+  onUploadStateChange,
   assetType,
+  assetKey,
   backgroundMode,
   backgroundImage,
-}: Props & { assetType: string; backgroundMode: string; backgroundImage?: string | null }) {
+  transparentCanvas = false,
+}: Props & { assetType: string; assetKey: string; backgroundMode: string; backgroundImage?: string | null; transparentCanvas?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const uploadTimerRef = useRef<number | null>(null)
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen')
   const [history, setHistory] = useState<ImageData[]>([])
   const [future, setFuture] = useState<ImageData[]>([])
   const [uploading, setUploading] = useState(false)
+  const [previewUnavailable, setPreviewUnavailable] = useState(false)
 
   const canvasConfig = getCanvasConfig(question.interactionConfig)
   const width = Number(canvasConfig.width ?? 900)
   const height = Number(canvasConfig.height ?? 500)
-  const currentAssetId = Number(draft.structuredAnswer?.drawing_asset_id ?? draft.structuredAnswer?.annotation_asset_id ?? 0)
-  const currentAsset = question.answerAssets.find((asset) => asset.id === currentAssetId) ?? question.answerAssets[0]
-  const storageKey = assetType === 'annotation' ? 'annotation_asset_id' : 'drawing_asset_id'
+  const currentAsset = resolveCurrentAsset(question, draft, [assetKey])
+
+  const resetCanvas = useMemo(() => {
+    return () => {
+      const canvas = canvasRef.current
+      const context = canvas?.getContext('2d')
+      if (!canvas || !context) return
+      context.clearRect(0, 0, width, height)
+      if (!transparentCanvas) {
+        context.fillStyle = '#ffffff'
+        context.fillRect(0, 0, width, height)
+      }
+      drawBackground(context, width, height, backgroundMode)
+    }
+  }, [backgroundMode, height, transparentCanvas, width])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     canvas.width = width
     canvas.height = height
-    const context = canvas.getContext('2d')
-    if (!context) return
-    context.fillStyle = '#ffffff'
-    context.fillRect(0, 0, width, height)
-    drawBackground(context, width, height, backgroundMode)
-  }, [backgroundMode, height, width])
+    resetCanvas()
+  }, [height, resetCanvas, width])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const context = canvas?.getContext('2d')
+    if (!canvas || !context) return
+
+    let cancelled = false
+
+    async function hydrateCanvas() {
+      resetCanvas()
+
+      try {
+        if (currentAsset?.url) {
+          const image = await loadImage(currentAsset.url)
+          if (cancelled) return
+          context.drawImage(image, 0, 0, width, height)
+        }
+        setPreviewUnavailable(false)
+      } catch {
+        if (!cancelled) {
+          setPreviewUnavailable(true)
+        }
+      }
+    }
+
+    void hydrateCanvas()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentAsset?.url, resetCanvas, width, height])
+
+  useEffect(() => () => {
+    if (uploadTimerRef.current) {
+      window.clearTimeout(uploadTimerRef.current)
+    }
+  }, [])
 
   const pushHistory = () => {
     const canvas = canvasRef.current
@@ -296,6 +392,73 @@ function CanvasAssetInput({
     setFuture([])
   }
 
+  const exportCanvas = async () => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+
+    if (!backgroundImage) {
+      return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+    }
+
+    const composedCanvas = document.createElement('canvas')
+    composedCanvas.width = width
+    composedCanvas.height = height
+    const composedContext = composedCanvas.getContext('2d')
+    if (!composedContext) return null
+
+    try {
+      const image = await loadImage(backgroundImage)
+      composedContext.drawImage(image, 0, 0, width, height)
+    } catch {
+      // fall through: still export the annotation layer even if the reference image cannot be reloaded.
+    }
+
+    composedContext.drawImage(canvas, 0, 0, width, height)
+
+    return await new Promise<Blob | null>((resolve) => composedCanvas.toBlob(resolve, 'image/png'))
+  }
+
+  const uploadSnapshot = async () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    setUploading(true)
+    onUploadStateChange?.(question.id, 'uploading')
+    try {
+      const blob = await exportCanvas()
+      if (!blob) return
+      const file = new File([blob], `${assetType}-${question.id}.png`, { type: 'image/png' })
+      const asset = await onUploadAsset(question.id, assetType, file, {
+        width,
+        height,
+        backgroundMode,
+        interaction_type: question.answerInteractionType,
+        replace_existing: true,
+      })
+      onChange(mergeDraft(draft, { [assetKey]: asset.id }))
+      onUploadStateChange?.(question.id, 'idle')
+    } catch {
+      onUploadStateChange?.(question.id, 'error')
+      throw new Error('canvas upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const scheduleUpload = () => {
+    if (!editable) return
+    if (uploadTimerRef.current) {
+      window.clearTimeout(uploadTimerRef.current)
+    }
+    uploadTimerRef.current = window.setTimeout(() => {
+      void uploadSnapshot()
+    }, 700)
+  }
+
+  const markCanvasChanged = () => {
+    onChange(mergeDraft(draft, { notes: draft.structuredAnswer?.notes ?? '' }))
+    scheduleUpload()
+  }
+
   const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!editable) return
     const canvas = canvasRef.current
@@ -303,55 +466,41 @@ function CanvasAssetInput({
     if (!canvas || !context) return
     pushHistory()
     const rect = canvas.getBoundingClientRect()
+
     context.beginPath()
     context.lineWidth = tool === 'eraser' ? 16 : 2
     context.lineCap = 'round'
+    context.globalCompositeOperation = tool === 'eraser' && transparentCanvas ? 'destination-out' : 'source-over'
     context.strokeStyle = tool === 'eraser' ? '#ffffff' : '#0f172a'
     context.moveTo(event.clientX - rect.left, event.clientY - rect.top)
+
     const move = (moveEvent: PointerEvent) => {
       context.lineTo(moveEvent.clientX - rect.left, moveEvent.clientY - rect.top)
       context.stroke()
     }
     const stop = () => {
+      context.globalCompositeOperation = 'source-over'
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', stop)
+      markCanvasChanged()
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', stop)
   }
 
-  const uploadSnapshot = async () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    setUploading(true)
-    try {
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-      if (!blob) return
-      const file = new File([blob], `${assetType}-${question.id}.png`, { type: 'image/png' })
-      const asset = await onUploadAsset(question.id, assetType, file, { width, height, backgroundMode })
-      onChange({ studentAnswer: draft.studentAnswer, structuredAnswer: { ...(draft.structuredAnswer ?? {}), [storageKey]: asset.id } })
-    } finally {
-      setUploading(false)
-    }
-  }
-
   const clearCanvas = () => {
-    const canvas = canvasRef.current
-    const context = canvas?.getContext('2d')
-    if (!canvas || !context) return
     pushHistory()
-    context.clearRect(0, 0, canvas.width, canvas.height)
-    context.fillStyle = '#ffffff'
-    context.fillRect(0, 0, canvas.width, canvas.height)
-    drawBackground(context, width, height, backgroundMode)
+    resetCanvas()
+    markCanvasChanged()
   }
 
-  const applySnapshot = (snapshot: ImageData | undefined, setter: React.Dispatch<React.SetStateAction<ImageData[]>>) => {
+  const applySnapshot = (snapshot: ImageData | undefined, setter: Dispatch<SetStateAction<ImageData[]>>) => {
     const canvas = canvasRef.current
     const context = canvas?.getContext('2d')
     if (!canvas || !context || !snapshot) return
     setter((current) => current.slice(0, -1))
     context.putImageData(snapshot, 0, 0)
+    scheduleUpload()
   }
 
   return (
@@ -375,16 +524,33 @@ function CanvasAssetInput({
           applySnapshot(future[future.length - 1], setFuture)
         }} size="sm" type="button" variant="outline"><Redo2 className="size-4" /> Redo</Button>
         <Button disabled={!editable} onClick={clearCanvas} size="sm" type="button" variant="outline"><Trash2 className="size-4" /> Clear</Button>
-        <Button disabled={!editable || uploading} onClick={() => void uploadSnapshot()} size="sm" type="button"><Upload className="size-4" /> {uploading ? 'Saving…' : 'Save snapshot'}</Button>
+        <Button disabled={!editable || uploading} onClick={() => void uploadSnapshot()} size="sm" type="button"><Upload className="size-4" /> {uploading ? 'Uploading…' : 'Save snapshot'}</Button>
       </div>
       <div className="overflow-auto rounded-2xl border border-slate-200 bg-white p-3">
         <div className="relative inline-block">
-          {backgroundImage ? <img alt="Reference" className="pointer-events-none absolute inset-0 h-full w-full object-contain" src={backgroundImage} /> : null}
-          <canvas className="relative touch-none rounded-xl border border-slate-200" onPointerDown={startDrawing} ref={canvasRef} style={{ width: '100%', maxWidth: `${width}px`, aspectRatio: `${width} / ${height}` }} />
+          {backgroundImage ? (
+            <img
+              alt="Reference"
+              className="pointer-events-none absolute inset-0 h-full w-full rounded-xl object-contain"
+              onError={() => setPreviewUnavailable(true)}
+              src={backgroundImage}
+            />
+          ) : null}
+          <canvas className="relative touch-none rounded-xl border border-slate-200 bg-transparent" onPointerDown={startDrawing} ref={canvasRef} style={{ width: '100%', maxWidth: `${width}px`, aspectRatio: `${width} / ${height}` }} />
         </div>
       </div>
-      {currentAsset?.url ? <img alt="Saved answer sketch" className="max-h-80 rounded-2xl border border-slate-200 object-contain" src={currentAsset.url} /> : <p className="text-sm text-slate-500">Save a canvas snapshot to attach it to your answer.</p>}
-      {'text' in (draft.structuredAnswer ?? {}) ? null : <Textarea className="min-h-[6rem]" disabled={!editable} onChange={(event) => onChange({ studentAnswer: draft.studentAnswer, structuredAnswer: { ...(draft.structuredAnswer ?? {}), notes: event.target.value } })} placeholder="Optional notes for the saved sketch" value={String(draft.structuredAnswer?.notes ?? '')} />}
+      {currentAsset ? (
+        <AnswerAssetPreview asset={currentAsset} emptyLabel="The saved image preview is unavailable right now." title="Saved drawing answer" />
+      ) : (
+        <p className="text-sm text-slate-500">Draw on the canvas and it will be uploaded automatically as an image answer.</p>
+      )}
+      {previewUnavailable ? (
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <ImageOff className="size-4" />
+          One of the preview images could not be loaded. You can still redraw and replace it.
+        </div>
+      ) : null}
+      {'text' in (draft.structuredAnswer ?? {}) ? null : <Textarea className="min-h-[6rem]" disabled={!editable} onChange={(event) => onChange(mergeDraft(draft, { notes: event.target.value }))} placeholder="Optional notes for the saved sketch" value={String(draft.structuredAnswer?.notes ?? '')} />}
     </div>
   )
 }

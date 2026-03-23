@@ -141,6 +141,7 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
             ]],
         ])->assertOk()
             ->assertJsonPath('data.questions.0.answerAssets.0.id', $assetId)
+            ->assertJsonPath('data.questions.0.answerAssets.0.metadata.paper_question_id', $firstQuestion->id)
             ->assertJsonPath('data.questions.0.structuredAnswer.drawing_asset_id', $assetId);
     }
 
@@ -248,6 +249,62 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.questions.0.visualAssets.0.assetRole', 'diagram')
             ->assertJsonPath('data.questions.0.visualAssets.0.altText', 'Leaf diagram');
+    }
+
+    public function test_attempt_payload_uses_latest_saved_answer_interaction_type_and_config(): void
+    {
+        [$student, $paper] = $this->createStudentWithPublishedPaper();
+        $question = $paper->questions()->orderBy('order_index')->firstOrFail();
+        $question->update([
+            'answer_interaction_type' => 'multi_field',
+            'interaction_config' => [
+                'fields' => [
+                    ['key' => 'final', 'label' => 'Final answer'],
+                    ['key' => 'evidence', 'label' => 'Evidence'],
+                ],
+            ],
+        ]);
+
+        Sanctum::actingAs($student);
+
+        $response = $this->postJson("/api/student/papers/{$paper->id}/attempts");
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.questions.0.answerInteractionType', 'multi_field')
+            ->assertJsonPath('data.questions.0.interactionConfig.fields.0.key', 'final')
+            ->assertJsonPath('data.questions.0.interactionConfig.fields.1.label', 'Evidence');
+    }
+
+    public function test_review_payload_contains_answer_asset_preview_urls_and_question_visual_urls(): void
+    {
+        [$student, $paper] = $this->createStudentWithPublishedPaper(includeVisual: true);
+        Sanctum::actingAs($student);
+
+        $attemptId = $this->postJson("/api/student/papers/{$paper->id}/attempts")->json('data.id');
+        $firstQuestion = $paper->questions()->orderBy('order_index')->firstOrFail();
+
+        $assetId = $this->post("/api/student/attempts/{$attemptId}/answer-assets", [
+            'paper_question_id' => $firstQuestion->id,
+            'asset_type' => 'drawing',
+            'file' => UploadedFile::fake()->image('canvas.png'),
+            'metadata' => json_encode(['width' => 640, 'height' => 480]),
+        ], ['Accept' => 'application/json'])->json('data.id');
+
+        $this->putJson("/api/student/attempts/{$attemptId}/answers", [
+            'answers' => [[
+                'paper_question_id' => $firstQuestion->id,
+                'structured_answer' => ['drawing_asset_id' => $assetId, 'notes' => 'Annotated leaf'],
+            ]],
+        ])->assertOk();
+
+        $this->postJson("/api/student/attempts/{$attemptId}/submit")->assertOk();
+
+        $this->getJson("/api/student/attempts/{$attemptId}/review")
+            ->assertOk()
+            ->assertJsonPath('data.review.questions.0.visualAssets.0.url', 'http://localhost/storage/question-visuals/leaf-diagram.png')
+            ->assertJsonPath('data.review.questions.0.answerAssets.0.metadata.width', 640)
+            ->assertJson(fn ($json) => $json->where('data.review.questions.0.answerAssets.0.url', fn ($value) => is_string($value) && str_contains($value, '/storage/attempt-answers/'))->etc());
     }
 
     public function test_expired_attempt_is_auto_submitted_when_student_returns(): void

@@ -12,6 +12,9 @@ class MarkingPromptBuilder
         $studentAnswer = trim((string) $answer?->student_answer);
         $structuredAnswer = $answer?->structured_answer ?? [];
         $rubric = $question->rubric;
+        $answerAssets = $answer?->relationLoaded('assets')
+            ? $answer->assets
+            : $answer?->assets()->get();
 
         $outputSchema = [
             'awarded_marks' => 'integer between 0 and max_marks',
@@ -51,6 +54,13 @@ class MarkingPromptBuilder
                 'attempt_answer_id' => $answer?->id,
                 'student_answer' => $studentAnswer,
                 'structured_answer' => $structuredAnswer,
+                'answer_assets' => ($answerAssets ?? collect())->map(fn ($asset) => [
+                    'id' => $asset->id,
+                    'asset_type' => $asset->asset_type,
+                    'mime_type' => $asset->mime_type,
+                    'metadata' => $asset->metadata ?? [],
+                    'url' => $asset->url,
+                ])->values()->all(),
                 'is_blank' => $answer?->is_blank ?? ($studentAnswer === ''),
             ],
             'required_output_schema' => $outputSchema,

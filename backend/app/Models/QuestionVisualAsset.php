@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class QuestionVisualAsset extends Model
 {
@@ -48,6 +49,12 @@ class QuestionVisualAsset extends Model
             return null;
         }
 
-        return Storage::disk($this->disk)->url($this->file_path);
+        $url = Storage::disk($this->disk)->url($this->file_path);
+
+        if (Str::startsWith($url, ['http://', 'https://'])) {
+            return $url;
+        }
+
+        return url($url);
     }
 }

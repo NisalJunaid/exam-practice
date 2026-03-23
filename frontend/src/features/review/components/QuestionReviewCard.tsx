@@ -1,3 +1,4 @@
+import { AnswerAssetPreview } from '@/components/answers/AnswerAssetPreview'
 import { QuestionVisualPanel } from '@/components/questions/QuestionVisualPanel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -25,7 +26,9 @@ function StructuredAnswerBlock({ question }: { question: AttemptReviewQuestion }
     return (
       <div className="grid gap-3">
         <div className="flex flex-wrap gap-3">
-          {question.answerAssets.map((asset) => asset.url ? <img alt={asset.originalName ?? 'Submitted answer'} className="max-h-80 rounded-2xl border border-slate-200 object-contain" key={asset.id} src={asset.url} /> : null)}
+          {question.answerAssets.map((asset) => (
+            <AnswerAssetPreview asset={asset} className="max-w-2xl" key={asset.id} />
+          ))}
         </div>
         {structured.notes ? <p className="whitespace-pre-wrap text-sm text-slate-700">{String(structured.notes)}</p> : null}
         {structured.text ? <p className="whitespace-pre-wrap text-sm text-slate-700">{String(structured.text)}</p> : null}
@@ -35,13 +38,17 @@ function StructuredAnswerBlock({ question }: { question: AttemptReviewQuestion }
 
   if (question.answerInteractionType === 'multi_field' && structured.fields && typeof structured.fields === 'object') {
     return (
-      <div className="grid gap-3 md:grid-cols-2">
-        {Object.entries(structured.fields as Record<string, string>).map(([key, value]) => (
+        <div className="grid gap-3 md:grid-cols-2">
+        {Object.entries(structured.fields as Record<string, string>).map(([key, value]) => {
+          const configuredField = ((question.interactionConfig.fields as Array<{ key: string; label: string }> | undefined) ?? []).find((field) => field.key === key)
+
+          return (
           <div className="rounded-xl border border-slate-200 p-3" key={key}>
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{key}</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{configuredField?.label ?? key}</p>
             <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{value || '—'}</p>
           </div>
-        ))}
+          )
+        })}
       </div>
     )
   }

@@ -1,14 +1,17 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 
 import { FormField } from '@/components/common/FormField'
+import { QuestionVisualPanel } from '@/components/questions/QuestionVisualPanel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { AnswerInteractionRenderer } from '@/features/attempts/components/AnswerInteractionRenderer'
+import type { AttemptAnswerDraft, AttemptQuestion } from '@/features/attempts/types'
 
 import type { AdminQuestion, AdminQuestionFormValues, AdminRubricFormValues } from './types'
 import { questionToFormValues, toQuestionPayload } from './utils'
@@ -68,6 +71,39 @@ export function QuestionForm({ mode, question, defaultValues, paperTitle, includ
   async function handleSubmit(values: AdminQuestionFormValues) {
     await onSubmit(toQuestionPayload(values, rubricValues))
   }
+
+  const previewValues = useWatch({ control: form.control })
+  let previewConfig: Record<string, unknown> = {}
+  try {
+    previewConfig = JSON.parse(previewValues.interaction_config || '{}') as Record<string, unknown>
+  } catch {
+    previewConfig = {}
+  }
+
+  const previewQuestion: AttemptQuestion = {
+    id: question?.id ?? 0,
+    answerId: null,
+    questionNumber: previewValues.question_number || question?.questionNumber || '1',
+    questionKey: previewValues.question_key || question?.questionKey || null,
+    questionText: previewValues.question_text || question?.questionText || 'Preview the renderer here.',
+    questionType: previewValues.question_type,
+    answerInteractionType: previewValues.answer_interaction_type,
+    interactionConfig: previewConfig,
+    stemContext: previewValues.stem_context || question?.stemContext || null,
+    maxMarks: Number(previewValues.max_marks || question?.maxMarks || 1),
+    requiresVisualReference: previewValues.requires_visual_reference,
+    visualReferenceType: previewValues.visual_reference_type || null,
+    visualReferenceNote: previewValues.visual_reference_note || null,
+    hasVisual: Boolean(question?.visualAssets.length),
+    visualAssets: question?.visualAssets ?? [],
+    studentAnswer: null,
+    structuredAnswer: null,
+    answerAssets: [],
+    isBlank: true,
+    submittedAt: null,
+    updatedAt: question?.updatedAt ?? null,
+  }
+  const previewDraft: AttemptAnswerDraft = { studentAnswer: '', structuredAnswer: null }
 
   return (
     <form className="grid gap-6" onSubmit={form.handleSubmit(handleSubmit)}>
@@ -163,6 +199,20 @@ export function QuestionForm({ mode, question, defaultValues, paperTitle, includ
             <div className="rounded-2xl border border-slate-200 p-4">
               <p className="font-medium text-slate-900">Interaction-aware rendering</p>
               <p>Store both the academic question type and answer interaction type so attempt rendering can switch between text, tables, calculations, and canvas tools.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <p className="font-medium text-slate-900">Live renderer preview</p>
+              <p className="mb-3">This preview uses the currently selected answer interaction type and interaction config.</p>
+              <div className="space-y-4">
+                {previewQuestion.visualAssets.length ? <QuestionVisualPanel compact visuals={previewQuestion.visualAssets} /> : null}
+                <AnswerInteractionRenderer
+                  draft={previewDraft}
+                  editable={false}
+                  onChange={() => undefined}
+                  onUploadAsset={async () => { throw new Error('Preview uploads are disabled.') }}
+                  question={previewQuestion}
+                />
+              </div>
             </div>
             <div className="rounded-2xl border border-slate-200 p-4">
               <p className="font-medium text-slate-900">Question keys</p>

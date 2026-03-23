@@ -184,6 +184,8 @@ class AdminPaperQuestionCrudTest extends TestCase
         $question = PaperQuestion::factory()->for($paper)->create([
             'question_number' => '1',
             'question_key' => '1(a)',
+            'answer_interaction_type' => 'short_text',
+            'interaction_config' => [],
             'max_marks' => 4,
             'order_index' => 1,
             'has_visual' => true,
@@ -218,6 +220,51 @@ class AdminPaperQuestionCrudTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.visualAssets.0.altText', 'Updated diagram alt text')
             ->assertJsonPath('data.visualAssets.0.caption', 'Updated caption');
+    }
+
+    public function test_admin_question_update_persists_answer_interaction_type_and_interaction_config(): void
+    {
+        $paper = Paper::factory()->for(Subject::factory())->create(['total_marks' => 6]);
+        $question = PaperQuestion::factory()->for($paper)->create([
+            'question_number' => '1',
+            'question_key' => '1(a)',
+            'question_type' => 'short_answer',
+            'answer_interaction_type' => 'short_text',
+            'interaction_config' => [],
+            'max_marks' => 6,
+            'order_index' => 1,
+        ]);
+
+        $this->putJson("/api/admin/questions/{$question->id}", [
+            'question_type' => 'multiple_part',
+            'answer_interaction_type' => 'multi_field',
+            'interaction_config' => [
+                'fields' => [
+                    ['key' => 'method', 'label' => 'Method'],
+                    ['key' => 'result', 'label' => 'Result'],
+                ],
+            ],
+            'question_text' => 'Explain the method and state the result.',
+            'reference_answer' => 'Method and result.',
+            'max_marks' => 6,
+            'order_index' => 1,
+        ])->assertOk()
+            ->assertJsonPath('data.answerInteractionType', 'multi_field')
+            ->assertJsonPath('data.interactionConfig.fields.0.key', 'method')
+            ->assertJsonPath('data.interactionConfig.fields.1.label', 'Result');
+
+        $this->assertDatabaseHas('paper_questions', [
+            'id' => $question->id,
+            'answer_interaction_type' => 'multi_field',
+        ]);
+
+        $question->refresh();
+        $this->assertSame([
+            'fields' => [
+                ['key' => 'method', 'label' => 'Method'],
+                ['key' => 'result', 'label' => 'Result'],
+            ],
+        ], $question->interaction_config);
     }
 
     public function test_admin_validation_and_safe_delete_guards_block_invalid_changes(): void

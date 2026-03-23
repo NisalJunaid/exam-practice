@@ -13,6 +13,8 @@ function formatSaveStatus(status: AttemptHeaderProps['saveStatus'], editable: bo
   switch (status) {
     case 'saving':
       return 'Saving…'
+    case 'uploading':
+      return 'Uploading drawing…'
     case 'saved':
       return 'Saved'
     case 'error':
@@ -33,7 +35,7 @@ export interface AttemptHeaderProps {
   answeredCount: number
   totalQuestions: number
   editable: boolean
-  saveStatus: 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
+  saveStatus: 'idle' | 'dirty' | 'uploading' | 'saving' | 'saved' | 'error'
   onExpire?: () => void
   lastSavedAt: Date | null
   saveDisabled?: boolean
