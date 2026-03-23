@@ -27,6 +27,7 @@ Route::middleware(['auth:sanctum', 'role:student'])->prefix('student')->group(fu
     Route::post('/papers/{paper}/attempts', [AttemptController::class, 'store']);
     Route::get('/attempts/{attempt}', [AttemptController::class, 'show'])->can('view', 'attempt');
     Route::put('/attempts/{attempt}/answers', [AttemptController::class, 'updateAnswers'])->can('update', 'attempt');
+    Route::post('/attempts/{attempt}/answer-assets', [AttemptController::class, 'storeAsset'])->can('update', 'attempt');
     Route::post('/attempts/{attempt}/submit', [AttemptController::class, 'submit'])->can('submit', 'attempt');
     Route::get('/attempts/{attempt}/results', [AttemptController::class, 'result'])->can('review', 'attempt');
     Route::get('/attempts/{attempt}/result', [AttemptController::class, 'result'])->can('review', 'attempt');

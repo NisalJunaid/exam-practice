@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\AnswerInteractionType;
 use App\Enums\QuestionType;
 use App\Enums\VisualReferenceType;
 use App\Models\Paper;
@@ -22,6 +23,8 @@ class PaperQuestionFactory extends Factory
             'question_number' => (string) fake()->numberBetween(1, 12),
             'question_key' => fake()->optional()->regexify('[1-9]\([a-d]\)'),
             'question_type' => fake()->randomElement(array_column(QuestionType::cases(), 'value')),
+            'answer_interaction_type' => fake()->randomElement(array_column(AnswerInteractionType::cases(), 'value')),
+            'interaction_config' => [],
             'question_text' => fake()->paragraphs(2, true),
             'reference_answer' => fake()->paragraph(),
             'max_marks' => fake()->numberBetween(1, 10),

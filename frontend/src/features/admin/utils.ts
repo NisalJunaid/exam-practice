@@ -39,6 +39,9 @@ export function questionToFormValues(question?: AdminQuestion | null): AdminQues
   return {
     question_number: question?.questionNumber ?? '',
     question_key: question?.questionKey ?? '',
+    question_type: question?.questionType ?? 'short_answer',
+    answer_interaction_type: question?.answerInteractionType ?? 'short_text',
+    interaction_config: JSON.stringify(question?.interactionConfig ?? {}, null, 2),
     question_text: question?.questionText ?? '',
     reference_answer: question?.referenceAnswer ?? '',
     max_marks: question?.maxMarks ? String(question.maxMarks) : '',
@@ -46,6 +49,9 @@ export function questionToFormValues(question?: AdminQuestion | null): AdminQues
     sample_full_mark_answer: question?.sampleFullMarkAnswer ?? '',
     order_index: question?.orderIndex ? String(question.orderIndex) : '1',
     stem_context: question?.stemContext ?? '',
+    requires_visual_reference: Boolean(question?.requiresVisualReference),
+    visual_reference_type: question?.visualReferenceType ?? '',
+    visual_reference_note: question?.visualReferenceNote ?? '',
   }
 }
 
@@ -65,7 +71,7 @@ export function rubricToFormValues(rubric?: AdminQuestionRubric | null): AdminRu
 
 function parseMultilineList(value: string) {
   return value
-    .split(/\n|,/)
+    .split(/\n|,/) 
     .map((item) => item.trim())
     .filter(Boolean)
 }
@@ -102,6 +108,9 @@ export function toQuestionPayload(values: AdminQuestionFormValues, rubricValues?
   return {
     question_number: emptyToNull(values.question_number),
     question_key: emptyToNull(values.question_key),
+    question_type: values.question_type,
+    answer_interaction_type: values.answer_interaction_type,
+    interaction_config: JSON.parse(values.interaction_config || '{}'),
     question_text: values.question_text.trim(),
     reference_answer: values.reference_answer.trim(),
     max_marks: Number(values.max_marks),
@@ -109,6 +118,9 @@ export function toQuestionPayload(values: AdminQuestionFormValues, rubricValues?
     sample_full_mark_answer: emptyToNull(values.sample_full_mark_answer),
     order_index: Number(values.order_index),
     stem_context: emptyToNull(values.stem_context),
+    requires_visual_reference: values.requires_visual_reference,
+    visual_reference_type: values.requires_visual_reference ? emptyToNull(values.visual_reference_type) : null,
+    visual_reference_note: values.requires_visual_reference ? emptyToNull(values.visual_reference_note) : null,
     ...(rubricValues ? { rubric: toRubricPayload(rubricValues) } : {}),
   }
 }
@@ -137,6 +149,9 @@ export function getNextQuestionDefaults(paper?: AdminPaper | null) {
   return {
     question_number: topLevelNumber,
     question_key: '',
+    question_type: 'short_answer',
+    answer_interaction_type: 'short_text',
+    interaction_config: '{}',
     question_text: '',
     reference_answer: '',
     max_marks: '1',
@@ -144,5 +159,8 @@ export function getNextQuestionDefaults(paper?: AdminPaper | null) {
     sample_full_mark_answer: '',
     order_index: String(nextIndex),
     stem_context: '',
+    requires_visual_reference: false,
+    visual_reference_type: '',
+    visual_reference_note: '',
   } satisfies AdminQuestionFormValues
 }

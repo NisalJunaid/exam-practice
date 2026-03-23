@@ -75,6 +75,8 @@ class PaperImportController extends Controller
             'question_number' => $validated['question_number'] ?? $item->question_number,
             'parent_key' => $validated['parent_key'] ?? null,
             'question_type' => $validated['question_type'],
+            'answer_interaction_type' => $validated['answer_interaction_type'],
+            'interaction_config' => $validated['interaction_config'],
             'stem_context' => $validated['stem_context'] ?? null,
             'question_text' => $validated['question_text'],
             'reference_answer' => $validated['reference_answer'] ?? null,

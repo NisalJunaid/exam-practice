@@ -54,6 +54,13 @@ export function getQuestionPreview(value: string | null | undefined, fallback = 
   return text.length > 160 ? `${text.slice(0, 157)}…` : text
 }
 
+export function summarizeInteractionConfig(config: Record<string, unknown> | null | undefined) {
+  if (!config) return 'No config'
+  const keys = Object.keys(config)
+  if (!keys.length) return 'Default config'
+  return keys.slice(0, 3).join(', ')
+}
+
 export function stringifyMetadataValue(value: unknown) {
   if (value == null || value === '') return '—'
   if (Array.isArray(value)) {

@@ -39,6 +39,17 @@ export function useSaveAttemptAnswers(attemptId: string) {
   })
 }
 
+export function useUploadAttemptAnswerAsset(attemptId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (formData: FormData) => attemptsApi.uploadAnswerAsset(attemptId, formData),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.attempts.detail(attemptId) })
+    },
+  })
+}
+
 export function useSubmitAttempt(attemptId: string) {
   const queryClient = useQueryClient()
 

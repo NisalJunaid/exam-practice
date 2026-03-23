@@ -5,20 +5,22 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import type { AttemptQuestion } from '@/features/attempts/types'
+import type { AttemptAnswerAsset, AttemptAnswerDraft, AttemptQuestion } from '@/features/attempts/types'
 import { cn } from '@/lib/utils/cn'
+
+import { AnswerInteractionRenderer } from './AnswerInteractionRenderer'
 
 interface QuestionAnswerCardProps {
   question: AttemptQuestion
   index: number
   totalQuestions: number
-  value: string
+  draft: AttemptAnswerDraft
   editable: boolean
   isCurrent: boolean
   isAnswered: boolean
   onFocus: (questionId: number) => void
-  onChange: (questionId: number, value: string) => void
+  onChange: (questionId: number, draft: AttemptAnswerDraft) => void
+  onUploadAsset: (questionId: number, assetType: string, file: File, metadata?: Record<string, unknown>) => Promise<AttemptAnswerAsset>
   onPrevious?: () => void
   onNext?: () => void
 }
@@ -27,7 +29,7 @@ function getQuestionHeading(question: AttemptQuestion) {
   return question.questionKey || `Question ${question.questionNumber}`
 }
 
-export function QuestionAnswerCard({ question, index, totalQuestions, value, editable, isCurrent, isAnswered, onFocus, onChange, onPrevious, onNext }: QuestionAnswerCardProps) {
+export function QuestionAnswerCard({ question, index, totalQuestions, draft, editable, isCurrent, isAnswered, onFocus, onChange, onUploadAsset, onPrevious, onNext }: QuestionAnswerCardProps) {
   const heading = getQuestionHeading(question)
 
   return (
@@ -40,6 +42,7 @@ export function QuestionAnswerCard({ question, index, totalQuestions, value, edi
               {question.questionKey ? <Badge className="bg-slate-100 text-slate-700">{question.questionKey}</Badge> : null}
               <Badge className="bg-slate-100 text-slate-700">Question {question.questionNumber}</Badge>
               <Badge className="bg-slate-100 text-slate-700">{question.maxMarks} marks</Badge>
+              <Badge className="bg-violet-50 text-violet-700">{question.answerInteractionType.replaceAll('_', ' ')}</Badge>
               <Badge className={isAnswered ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}>{isAnswered ? 'Answered' : 'Unanswered'}</Badge>
             </div>
 
@@ -67,20 +70,20 @@ export function QuestionAnswerCard({ question, index, totalQuestions, value, edi
 
         <div className="grid gap-3">
           <div className="flex items-center justify-between gap-3">
-            <Label className="text-sm font-medium text-slate-900" htmlFor={`question-answer-${question.id}`}>Your answer</Label>
+            <Label className="text-sm font-medium text-slate-900">Your answer</Label>
             {!editable ? <span className="text-xs text-slate-500">Locked after submission</span> : null}
           </div>
-          <Textarea
-            className="min-h-[18rem] resize-y border-slate-200 bg-white text-base leading-7"
-            disabled={!editable}
-            id={`question-answer-${question.id}`}
-            onChange={(event) => onChange(question.id, event.target.value)}
-            onFocus={() => onFocus(question.id)}
-            placeholder="Write your response here..."
-            value={value}
-          />
+          <div onFocus={() => onFocus(question.id)}>
+            <AnswerInteractionRenderer
+              draft={draft}
+              editable={editable}
+              onChange={(nextDraft) => onChange(question.id, nextDraft)}
+              onUploadAsset={onUploadAsset}
+              question={question}
+            />
+          </div>
           <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
-            <span>{value.trim().length} characters</span>
+            <span>{draft.studentAnswer.trim().length} text characters</span>
             <span>{question.maxMarks} max marks</span>
           </div>
         </div>

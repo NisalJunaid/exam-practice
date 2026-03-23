@@ -2,7 +2,7 @@ import { apiClient } from '@/lib/api/client'
 import { endpoints } from '@/lib/api/endpoints'
 import type { ApiEnvelope } from '@/lib/types/api'
 
-import type { AttemptDetail, SaveAnswersPayload, SubmittedAttemptDetail } from './types'
+import type { AttemptAnswerAsset, AttemptDetail, SaveAnswersPayload, SubmittedAttemptDetail } from './types'
 
 export const attemptsApi = {
   async create(paperId: string) {
@@ -15,6 +15,12 @@ export const attemptsApi = {
   },
   async saveAnswers(attemptId: string, payload: SaveAnswersPayload) {
     const { data } = await apiClient.put<ApiEnvelope<AttemptDetail>>(endpoints.student.attempts.answers(attemptId), payload)
+    return data.data
+  },
+  async uploadAnswerAsset(attemptId: string, formData: FormData) {
+    const { data } = await apiClient.post<ApiEnvelope<AttemptAnswerAsset>>(endpoints.student.attempts.answerAssets(attemptId), formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
     return data.data
   },
   async submit(attemptId: string) {

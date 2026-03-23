@@ -111,6 +111,8 @@ class ImportApprovalService
                 'question_key' => $item->question_key,
                 'question_type' => $item->question_type,
                 'question_text' => $item->question_text,
+                'answer_interaction_type' => $item->answer_interaction_type,
+                'interaction_config' => $item->interaction_config,
                 'reference_answer' => $item->reference_answer ?? $item->marking_guidelines ?? 'Imported answer guidance pending.',
                 'max_marks' => $item->resolved_max_marks ?? $item->mark_scheme_marks ?? $item->question_paper_marks ?? 0,
                 'marking_guidelines' => $item->marking_guidelines,

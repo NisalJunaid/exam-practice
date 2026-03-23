@@ -33,9 +33,13 @@ class AttemptResource extends JsonResource
 
                 return [
                     'id' => $question->id,
+                    'answerId' => $answer?->id,
                     'questionNumber' => $question->question_number,
                     'questionKey' => $question->question_key,
                     'questionText' => $question->question_text,
+                    'questionType' => $question->question_type?->value ?? $question->question_type,
+                    'answerInteractionType' => $question->answer_interaction_type?->value ?? $question->answer_interaction_type,
+                    'interactionConfig' => $question->interaction_config ?? [],
                     'stemContext' => $question->stem_context,
                     'maxMarks' => $question->max_marks,
                     'requiresVisualReference' => $question->requires_visual_reference,
@@ -44,6 +48,8 @@ class AttemptResource extends JsonResource
                     'hasVisual' => $question->has_visual,
                     'visualAssets' => QuestionVisualAssetResource::collection($question->visualAssets)->resolve(),
                     'studentAnswer' => $answer?->student_answer,
+                    'structuredAnswer' => $answer?->structured_answer,
+                    'answerAssets' => AttemptAnswerAssetResource::collection($answer?->assets ?? collect())->resolve(),
                     'isBlank' => $answer?->is_blank ?? true,
                     'submittedAt' => optional($answer?->submitted_at)->toIso8601String(),
                 ];

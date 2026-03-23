@@ -39,6 +39,8 @@ class AdminImportApprovalTest extends TestCase
             ->assertJsonPath('data.status', 'needs_review')
             ->assertJsonPath('data.metadata.title', 'Cambridge IGCSE Biology 0610/42')
             ->assertJsonPath('data.items.1.questionType', 'diagram_label')
+            ->assertJsonPath('data.items.1.answerInteractionType', 'diagram_annotation')
+            ->assertJsonPath('data.items.2.answerInteractionType', 'table_input')
             ->assertJsonPath('data.items.1.reviewStatus', 'missing_visual');
 
         $this->assertDatabaseHas('document_imports', [
@@ -48,6 +50,7 @@ class AdminImportApprovalTest extends TestCase
         $this->assertDatabaseHas('document_import_items', [
             'question_key' => '2(a)',
             'question_type' => 'diagram_label',
+            'answer_interaction_type' => 'diagram_annotation',
             'requires_visual_reference' => true,
             'visual_reference_type' => 'diagram',
         ]);
@@ -79,6 +82,8 @@ class AdminImportApprovalTest extends TestCase
             'question_number' => '3',
             'parent_key' => null,
             'question_type' => 'multiple_part',
+            'answer_interaction_type' => 'multi_field',
+            'interaction_config' => ['fields' => [['key' => 'effect', 'label' => 'Effect', 'type' => 'text']]],
             'stem_context' => 'Updated structured context.',
             'question_text' => 'Explain the effect of temperature and justify your answer.',
             'reference_answer' => 'Temperature increases kinetic energy until enzymes denature.',
@@ -101,12 +106,14 @@ class AdminImportApprovalTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.questionType', 'multiple_part')
+            ->assertJsonPath('data.answerInteractionType', 'multi_field')
             ->assertJsonPath('data.resolvedMaxMarks', 5)
             ->assertJsonPath('data.reviewStatus', 'ready');
 
         $this->assertDatabaseHas('document_import_items', [
             'id' => $item->id,
             'question_type' => 'multiple_part',
+            'answer_interaction_type' => 'multi_field',
             'resolved_max_marks' => 5,
             'is_approved' => true,
         ]);
@@ -166,6 +173,7 @@ class AdminImportApprovalTest extends TestCase
             'paper_id' => $paper->id,
             'question_key' => '2(a)',
             'question_type' => 'diagram_label',
+            'answer_interaction_type' => 'diagram_annotation',
             'requires_visual_reference' => true,
             'has_visual' => true,
         ]);
@@ -223,6 +231,8 @@ class AdminImportApprovalTest extends TestCase
                     'parent_key' => null,
                     'sort_order' => 1,
                     'question_type' => 'short_answer',
+                    'answer_interaction_type' => 'select_single',
+                    'interaction_config' => ['options' => ['green colour', 'broad surface area', 'thick cuticle']],
                     'stem_context' => 'Photosynthesis and leaves',
                     'question_text' => 'State two observable features of a healthy leaf.',
                     'max_marks' => 2,
@@ -240,6 +250,8 @@ class AdminImportApprovalTest extends TestCase
                     'parent_key' => null,
                     'sort_order' => 2,
                     'question_type' => 'diagram_label',
+                    'answer_interaction_type' => 'diagram_annotation',
+                    'interaction_config' => ['base_image_required' => true, 'canvas_overlay' => true, 'allow_text_labels' => true],
                     'stem_context' => 'Use the labelled cell diagram.',
                     'question_text' => 'Label the nucleus and the cell membrane on the diagram.',
                     'max_marks' => 2,
@@ -257,6 +269,8 @@ class AdminImportApprovalTest extends TestCase
                     'parent_key' => '2',
                     'sort_order' => 3,
                     'question_type' => 'table',
+                    'answer_interaction_type' => 'table_input',
+                    'interaction_config' => ['columns' => [['key' => 'feature', 'label' => 'Feature', 'readonly' => true], ['key' => 'answer', 'label' => 'Answer', 'readonly' => false]], 'rows' => [['key' => 'cell_wall', 'feature' => 'cell wall']]],
                     'stem_context' => 'Refer to the results table.',
                     'question_text' => 'Complete the table to compare plant and animal cells.',
                     'max_marks' => 3,
@@ -274,6 +288,8 @@ class AdminImportApprovalTest extends TestCase
                     'parent_key' => '3',
                     'sort_order' => 4,
                     'question_type' => 'structured',
+                    'answer_interaction_type' => 'multi_field',
+                    'interaction_config' => ['fields' => [['key' => 'increase', 'label' => 'Increase', 'type' => 'text'], ['key' => 'decrease', 'label' => 'Decrease', 'type' => 'text']]],
                     'stem_context' => 'Investigate how temperature affects enzyme activity.',
                     'question_text' => 'Explain the effect of temperature on enzyme activity.',
                     'max_marks' => 4,

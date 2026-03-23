@@ -28,6 +28,8 @@ export const importsApi = {
     questionNumber?: string | null
     parentKey?: string | null
     questionType: DocumentImportItem['questionType']
+    answerInteractionType: DocumentImportItem['answerInteractionType']
+    interactionConfig: DocumentImportItem['interactionConfig']
     stemContext?: string | null
     questionText: string
     referenceAnswer?: string | null
@@ -48,6 +50,8 @@ export const importsApi = {
       question_number: payload.questionNumber,
       parent_key: payload.parentKey,
       question_type: payload.questionType,
+      answer_interaction_type: payload.answerInteractionType,
+      interaction_config: payload.interactionConfig,
       stem_context: payload.stemContext,
       question_text: payload.questionText,
       reference_answer: payload.referenceAnswer,

@@ -2,16 +2,18 @@
 
 namespace App\Services\Papers\Admin;
 
+use App\Enums\QuestionType;
 use App\Models\Paper;
 use App\Models\PaperQuestion;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use App\Support\AnswerInteractions\AnswerInteractionSchema;
 
 class AdminQuestionService
 {
-    public function __construct(private readonly QuestionVisualAssetSyncService $visualAssetSyncService) {}
+    public function __construct(private readonly QuestionVisualAssetSyncService $visualAssetSyncService, private readonly AnswerInteractionSchema $interactionSchema) {}
 
     public function create(Paper $paper, array $attributes): PaperQuestion
     {
@@ -109,7 +111,14 @@ class AdminQuestionService
 
         $this->ensureUniqueQuestionMetadata($paper, $attributes, $question);
 
-        return $attributes;
+        $normalizedInteraction = $this->interactionSchema->normalize(
+            questionType: (string) ($attributes['question_type'] ?? ($question?->question_type?->value ?? $question?->question_type ?? QuestionType::ShortAnswer->value)),
+            answerInteractionType: $attributes['answer_interaction_type'] ?? ($question?->answer_interaction_type?->value ?? $question?->answer_interaction_type),
+            interactionConfig: $attributes['interaction_config'] ?? $question?->interaction_config,
+            requiresVisualReference: (bool) ($attributes['requires_visual_reference'] ?? $question?->requires_visual_reference ?? false),
+        );
+
+        return array_merge($attributes, $normalizedInteraction);
     }
 
     private function inferQuestionNumber(?string $questionKey, ?int $orderIndex, ?string $fallback = null): string

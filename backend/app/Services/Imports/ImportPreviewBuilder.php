@@ -13,10 +13,14 @@ class ImportPreviewBuilder
         $warningCount = 0;
         $visualCount = 0;
         $missingVisualCount = 0;
+        $interactionCounts = [];
 
         foreach ($questions as $question) {
             $type = $question['question_type'];
             $typeCounts[$type] = ($typeCounts[$type] ?? 0) + 1;
+
+            $interaction = $question['answer_interaction_type'];
+            $interactionCounts[$interaction] = ($interactionCounts[$interaction] ?? 0) + 1;
 
             if ($question['requires_visual_reference']) {
                 $visualCount++;
@@ -31,6 +35,7 @@ class ImportPreviewBuilder
         return [
             'paper' => $validatedPayload['paper'],
             'questionTypes' => $typeCounts,
+            'interactionTypes' => $interactionCounts,
             'counts' => [
                 'totalItems' => count($questions),
                 'readyItems' => 0,

@@ -15,6 +15,8 @@ class AdminQuestionResource extends JsonResource
             'questionNumber' => $this->question_number,
             'questionKey' => $this->question_key,
             'questionType' => $this->question_type?->value ?? $this->question_type,
+            'answerInteractionType' => $this->answer_interaction_type?->value ?? $this->answer_interaction_type,
+            'interactionConfig' => $this->interaction_config ?? [],
             'questionText' => $this->question_text,
             'referenceAnswer' => $this->reference_answer,
             'maxMarks' => $this->max_marks,

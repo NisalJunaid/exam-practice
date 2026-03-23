@@ -1,5 +1,5 @@
 import type { AttemptDetail } from '@/features/attempts/types'
-import type { ImportItemVisualAsset, QuestionType, VisualReferenceType } from '@/features/imports/types'
+import type { AnswerInteractionType, ImportItemVisualAsset, QuestionType, VisualReferenceType } from '@/features/imports/types'
 
 export interface PaperSubjectSummary {
   id: number
@@ -26,6 +26,8 @@ export interface PaperQuestionSummary {
   questionNumber: string
   questionKey: string | null
   questionType: QuestionType
+  answerInteractionType: AnswerInteractionType
+  interactionConfig: Record<string, unknown>
   questionText: string
   maxMarks: number
   orderIndex: number

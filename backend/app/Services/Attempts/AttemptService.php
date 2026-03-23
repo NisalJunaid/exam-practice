@@ -7,6 +7,7 @@ use App\Jobs\MarkPaperAttemptJob;
 use App\Models\Paper;
 use App\Models\PaperAttempt;
 use App\Models\User;
+use App\Support\AnswerInteractions\AnswerInteractionSchema;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,8 @@ use RuntimeException;
 
 class AttemptService
 {
+    public function __construct(private readonly AnswerInteractionSchema $interactionSchema) {}
+
     public function createAttempt(User $user, Paper $paper): PaperAttempt
     {
         return DB::transaction(function () use ($user, $paper) {
@@ -29,6 +32,7 @@ class AttemptService
                 $attempt->answers()->create([
                     'paper_question_id' => $question->id,
                     'student_answer' => null,
+                    'structured_answer' => null,
                     'is_blank' => true,
                 ]);
             }
@@ -55,17 +59,30 @@ class AttemptService
         DB::transaction(function () use ($attempt, $answers) {
             foreach ($answers as $payload) {
                 $questionId = Arr::get($payload, 'paper_question_id');
-                $answer = $attempt->answers()->where('paper_question_id', $questionId)->first();
+                $answer = $attempt->answers()->with('question')->where('paper_question_id', $questionId)->first();
 
                 if (! $answer) {
                     throw new RuntimeException('One or more answers do not belong to this attempt.');
                 }
 
-                $text = trim((string) Arr::get($payload, 'student_answer', ''));
+                $question = $answer->question;
+                $structuredAnswer = Arr::get($payload, 'structured_answer');
+                $structuredAnswer = is_array($structuredAnswer) ? $structuredAnswer : null;
+                $providedText = Arr::get($payload, 'student_answer');
+                $providedText = is_string($providedText) ? trim($providedText) : null;
+
+                $normalizedText = $this->interactionSchema->summarizeAnswer(
+                    $question->answer_interaction_type?->value ?? (string) $question->answer_interaction_type,
+                    $providedText,
+                    $structuredAnswer,
+                );
+                $normalizedText = trim($normalizedText);
+                $isBlank = $this->interactionSchema->isBlank($normalizedText, $structuredAnswer);
 
                 $answer->update([
-                    'student_answer' => $text !== '' ? $text : null,
-                    'is_blank' => $text === '',
+                    'student_answer' => $normalizedText !== '' ? $normalizedText : null,
+                    'structured_answer' => $structuredAnswer,
+                    'is_blank' => $isBlank,
                 ]);
             }
         });
@@ -145,6 +162,6 @@ class AttemptService
 
     private function loadAttempt(PaperAttempt $attempt): PaperAttempt
     {
-        return $attempt->load(['paper.subject.examBoard', 'paper.subject.examLevel', 'paper.questions.visualAssets', 'answers', 'markings']);
+        return $attempt->load(['paper.subject.examBoard', 'paper.subject.examLevel', 'paper.questions.visualAssets', 'answers.assets', 'markings']);
     }
 }

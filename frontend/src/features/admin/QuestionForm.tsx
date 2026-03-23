@@ -16,6 +16,16 @@ import { questionToFormValues, toQuestionPayload } from './utils'
 const schema = z.object({
   question_number: z.string().trim(),
   question_key: z.string().trim(),
+  question_type: z.string().trim(),
+  answer_interaction_type: z.string().trim(),
+  interaction_config: z.string().trim().refine((value) => {
+    try {
+      JSON.parse(value || '{}')
+      return true
+    } catch {
+      return false
+    }
+  }, 'Interaction config must be valid JSON.'),
   question_text: z.string().trim().min(3, 'Enter the question wording.'),
   reference_answer: z.string().trim().min(1, 'Enter the reference answer or mark scheme answer block.'),
   max_marks: z.string().trim().refine((value) => Number.isInteger(Number(value)) && Number(value) >= 1, 'Max marks must be at least 1.'),
@@ -23,6 +33,9 @@ const schema = z.object({
   sample_full_mark_answer: z.string(),
   order_index: z.string().trim().refine((value) => Number.isInteger(Number(value)) && Number(value) >= 1, 'Order index must be at least 1.'),
   stem_context: z.string(),
+  requires_visual_reference: z.boolean(),
+  visual_reference_type: z.string(),
+  visual_reference_note: z.string(),
 })
 
 interface QuestionFormProps {
@@ -37,6 +50,10 @@ interface QuestionFormProps {
   submitLabel?: string
   rubricValues?: AdminRubricFormValues
 }
+
+const questionTypes = ['short_answer', 'structured', 'table', 'diagram_label', 'calculation', 'multiple_part', 'essay', 'other']
+const interactionTypes = ['short_text', 'long_text', 'select_single', 'select_multiple', 'multi_field', 'table_input', 'calculation_with_working', 'canvas_draw', 'graph_plot', 'image_upload', 'canvas_plus_text', 'diagram_annotation', 'matching', 'mcq_single', 'mcq_multiple', 'other']
+const visualTypes = ['', 'diagram', 'table', 'graph', 'chemical_structure', 'image', 'mixed']
 
 export function QuestionForm({ mode, question, defaultValues, paperTitle, includeRubricHint, isSubmitting, onSubmit, onCancel, submitLabel, rubricValues }: QuestionFormProps) {
   const form = useForm<AdminQuestionFormValues>({
@@ -58,7 +75,7 @@ export function QuestionForm({ mode, question, defaultValues, paperTitle, includ
         <Card>
           <CardHeader>
             <CardTitle>Question fields</CardTitle>
-            <CardDescription>Keep wording, numbering, and scoring aligned before moving into rubric calibration.</CardDescription>
+            <CardDescription>Keep wording, numbering, answer interaction, and scoring aligned before moving into rubric calibration.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="md:col-span-2 flex flex-wrap gap-2">
@@ -72,12 +89,27 @@ export function QuestionForm({ mode, question, defaultValues, paperTitle, includ
             <FormField hint="Use structured keys like 2(c)(iv) when the mark scheme uses sub-parts." id="question_key" label="Question key">
               <Input id="question_key" placeholder="1(a)" {...form.register('question_key')} />
             </FormField>
+            <FormField id="question_type" label="Question type">
+              <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" {...form.register('question_type')}>
+                {questionTypes.map((type) => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}
+              </select>
+            </FormField>
+            <FormField id="answer_interaction_type" label="Answer interaction type">
+              <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" {...form.register('answer_interaction_type')}>
+                {interactionTypes.map((type) => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}
+              </select>
+            </FormField>
             <FormField error={form.formState.errors.order_index?.message} hint="Must be unique inside the paper." id="order_index" label="Order index">
               <Input id="order_index" inputMode="numeric" placeholder="1" {...form.register('order_index')} />
             </FormField>
             <FormField error={form.formState.errors.max_marks?.message} id="max_marks" label="Max marks">
               <Input id="max_marks" inputMode="numeric" placeholder="4" {...form.register('max_marks')} />
             </FormField>
+            <div className="md:col-span-2">
+              <FormField error={form.formState.errors.interaction_config?.message} hint="Raw JSON fallback for advanced configs like canvas, graph axes, table rows, and multi-field layouts." id="interaction_config" label="Interaction config JSON">
+                <Textarea className="min-h-[12rem] font-mono text-xs" id="interaction_config" {...form.register('interaction_config')} />
+              </FormField>
+            </div>
             <div className="md:col-span-2">
               <FormField error={form.formState.errors.question_text?.message} id="question_text" label="Question text">
                 <Textarea id="question_text" placeholder="Paste the exact wording students will answer." {...form.register('question_text')} />
@@ -103,6 +135,22 @@ export function QuestionForm({ mode, question, defaultValues, paperTitle, includ
                 <Textarea id="stem_context" placeholder="Shared prompt context for nested parts." {...form.register('stem_context')} />
               </FormField>
             </div>
+            <div className="md:col-span-2 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+              <label className="flex items-center gap-3 text-sm font-medium text-slate-900">
+                <input type="checkbox" {...form.register('requires_visual_reference')} />
+                Requires visual reference
+              </label>
+              <FormField id="visual_reference_type" label="Visual reference type">
+                <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" {...form.register('visual_reference_type')}>
+                  {visualTypes.map((type) => <option key={type} value={type}>{type ? type.replaceAll('_', ' ') : 'None'}</option>)}
+                </select>
+              </FormField>
+              <div className="md:col-span-2">
+                <FormField id="visual_reference_note" label="Visual reference note">
+                  <Textarea id="visual_reference_note" placeholder="Explain which reference visual the student needs." {...form.register('visual_reference_note')} />
+                </FormField>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -113,8 +161,8 @@ export function QuestionForm({ mode, question, defaultValues, paperTitle, includ
           </CardHeader>
           <CardContent className="grid gap-3 text-sm text-slate-600">
             <div className="rounded-2xl border border-slate-200 p-4">
-              <p className="font-medium text-slate-900">Marking basis</p>
-              <p>Every question needs a reference answer and a unique order index before it can be used accurately downstream.</p>
+              <p className="font-medium text-slate-900">Interaction-aware rendering</p>
+              <p>Store both the academic question type and answer interaction type so attempt rendering can switch between text, tables, calculations, and canvas tools.</p>
             </div>
             <div className="rounded-2xl border border-slate-200 p-4">
               <p className="font-medium text-slate-900">Question keys</p>

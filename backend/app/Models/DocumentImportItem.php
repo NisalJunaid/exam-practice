@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AnswerInteractionType;
 use App\Enums\ImportMatchStatus;
 use App\Enums\QuestionType;
 use App\Enums\VisualReferenceType;
@@ -19,6 +20,8 @@ class DocumentImportItem extends Model
         'question_key',
         'parent_key',
         'question_type',
+        'answer_interaction_type',
+        'interaction_config',
         'question_number',
         'stem_context',
         'question_text',
@@ -47,6 +50,8 @@ class DocumentImportItem extends Model
 
     protected $casts = [
         'question_type' => QuestionType::class,
+        'answer_interaction_type' => AnswerInteractionType::class,
+        'interaction_config' => 'array',
         'match_status' => ImportMatchStatus::class,
         'visual_reference_type' => VisualReferenceType::class,
         'question_paper_marks' => 'integer',

@@ -1,5 +1,8 @@
 import type { QuestionVisualAsset } from '@/components/questions/QuestionVisualPanel'
 
+export type AnswerInteractionType = 'short_text' | 'long_text' | 'select_single' | 'select_multiple' | 'multi_field' | 'table_input' | 'calculation_with_working' | 'canvas_draw' | 'graph_plot' | 'image_upload' | 'canvas_plus_text' | 'diagram_annotation' | 'matching' | 'mcq_single' | 'mcq_multiple' | 'other'
+export type QuestionType = 'short_answer' | 'structured' | 'table' | 'diagram_label' | 'calculation' | 'multiple_part' | 'essay' | 'other'
+
 export interface AdminPaperSubject {
   id: number
   name: string
@@ -31,6 +34,9 @@ export interface AdminQuestion {
   paperId: number
   questionNumber: string
   questionKey: string | null
+  questionType: QuestionType
+  answerInteractionType: AnswerInteractionType
+  interactionConfig: Record<string, unknown>
   questionText: string
   referenceAnswer: string
   maxMarks: number
@@ -95,6 +101,9 @@ export interface AdminQuestionRubricPayload {
 export interface AdminQuestionPayload {
   question_number?: string | null
   question_key?: string | null
+  question_type?: QuestionType
+  answer_interaction_type?: AnswerInteractionType
+  interaction_config?: Record<string, unknown>
   question_text: string
   reference_answer: string
   max_marks: number
@@ -102,6 +111,9 @@ export interface AdminQuestionPayload {
   sample_full_mark_answer?: string | null
   order_index: number
   stem_context?: string | null
+  requires_visual_reference?: boolean
+  visual_reference_type?: string | null
+  visual_reference_note?: string | null
   visual_assets?: Array<{ id: number; alt_text?: string | null; caption?: string | null; sort_order?: number; is_deleted?: boolean }>
   rubric?: AdminQuestionRubricPayload
 }
@@ -121,6 +133,9 @@ export interface AdminPaperFormValues {
 export interface AdminQuestionFormValues {
   question_number: string
   question_key: string
+  question_type: QuestionType
+  answer_interaction_type: AnswerInteractionType
+  interaction_config: string
   question_text: string
   reference_answer: string
   max_marks: string
@@ -128,6 +143,9 @@ export interface AdminQuestionFormValues {
   sample_full_mark_answer: string
   order_index: string
   stem_context: string
+  requires_visual_reference: boolean
+  visual_reference_type: string
+  visual_reference_note: string
 }
 
 export interface AdminRubricFormValues {
