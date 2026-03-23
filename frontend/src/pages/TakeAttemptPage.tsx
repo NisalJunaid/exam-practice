@@ -23,6 +23,10 @@ function storageKey(attemptId: string) {
   return `attempt-draft:${attemptId}`
 }
 
+function getNavigatorLabel(question: AttemptDetail['questions'][number], index: number) {
+  return question.questionKey?.trim() || question.questionNumber?.trim() || `Question ${index + 1}`
+}
+
 export function TakeAttemptPage() {
   const navigate = useNavigate()
   const { attemptId = '' } = useParams()
@@ -157,9 +161,10 @@ export function TakeAttemptPage() {
   )
 
   const navigatorQuestions = useMemo(
-    () => orderedQuestions.map((question) => ({
+    () => orderedQuestions.map((question, index) => ({
       id: question.id,
       questionNumber: question.questionNumber,
+      displayLabel: getNavigatorLabel(question, index),
       maxMarks: question.maxMarks,
       answered: (localAnswers[question.id] ?? '').trim().length > 0,
     })),
@@ -167,6 +172,37 @@ export function TakeAttemptPage() {
   )
 
   const activeQuestionId = currentQuestionId ?? orderedQuestions[0]?.id ?? null
+
+  useEffect(() => {
+    if (!orderedQuestions.length) return
+
+    const observer = new window.IntersectionObserver(
+      (entries) => {
+        const visibleEntry = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0]
+
+        if (!visibleEntry) return
+
+        const nextQuestionId = Number((visibleEntry.target as HTMLElement).dataset.questionId)
+        if (!Number.isFinite(nextQuestionId)) return
+
+        setCurrentQuestionId((current) => (current === nextQuestionId ? current : nextQuestionId))
+      },
+      {
+        rootMargin: '-180px 0px -45% 0px',
+        threshold: [0.2, 0.35, 0.6],
+      },
+    )
+
+    orderedQuestions.forEach((question) => {
+      const element = document.getElementById(`question-card-${question.id}`)
+      if (element) observer.observe(element)
+    })
+
+    return () => observer.disconnect()
+  }, [orderedQuestions])
+
   const handleAnswerChange = (questionId: number, value: string) => {
     setLocalAnswers((current) => ({ ...current, [questionId]: value }))
     setDirtyQuestionIds((current) => (current.includes(questionId) ? current : [...current, questionId]))
@@ -224,7 +260,7 @@ export function TakeAttemptPage() {
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-5">
         <AttemptHeader
           answeredCount={answeredCount}
           attempt={attempt}
@@ -262,14 +298,14 @@ export function TakeAttemptPage() {
           </Alert>
         ) : null}
 
-        <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)]">
-          <div className="lg:sticky lg:top-24 lg:self-start">
+        <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)] xl:gap-8 xl:grid-cols-[19rem_minmax(0,1fr)]">
+          <div className="lg:sticky lg:top-44 lg:self-start">
             <QuestionNavigator currentQuestionId={activeQuestionId} onSelectQuestion={handleSelectQuestion} questions={navigatorQuestions} />
           </div>
 
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-8">
             {orderedQuestions.map((question, index) => (
-              <div id={`question-card-${question.id}`} key={question.id}>
+              <div className="scroll-mt-44" data-question-id={question.id} id={`question-card-${question.id}`} key={question.id}>
                 <QuestionAnswerCard
                   editable={Boolean(editable)}
                   index={index}

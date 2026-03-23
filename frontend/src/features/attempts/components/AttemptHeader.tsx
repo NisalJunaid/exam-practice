@@ -1,4 +1,4 @@
-import { Clock3, Save, Send } from 'lucide-react'
+import { CheckCircle2, CircleDot, Clock3, Save, Send } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,10 @@ function formatSaveStatus(status: AttemptHeaderProps['saveStatus'], editable: bo
     default:
       return 'Ready'
   }
+}
+
+function buildPaperIdentifier(attempt: AttemptDetail) {
+  return attempt.paper.paperCode || attempt.paper.title
 }
 
 export interface AttemptHeaderProps {
@@ -53,11 +57,12 @@ export function AttemptHeader({
 }: AttemptHeaderProps) {
   const saveLabel = formatSaveStatus(saveStatus, editable)
   const timer = useAttemptTimer({ initialRemainingSeconds: attempt.remainingSeconds, isActive: editable }, onExpire)
+  const paperIdentifier = buildPaperIdentifier(attempt)
 
   return (
-    <Card className="border-slate-200 bg-white/95 shadow-sm backdrop-blur">
-      <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:p-6">
-        <div className="space-y-4">
+    <Card className="sticky top-20 z-30 border-slate-200 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85">
+      <CardContent className="flex flex-col gap-4 px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+        <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="bg-slate-100 text-slate-700">{attempt.paper.subject}</Badge>
             {attempt.paper.paperCode ? <Badge className="bg-slate-100 text-slate-700">{attempt.paper.paperCode}</Badge> : null}
@@ -66,55 +71,57 @@ export function AttemptHeader({
             </Badge>
           </div>
 
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-950 lg:text-3xl">{attempt.paper.title}</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              Work steadily, keep answers focused on the mark allocation, and review the navigator before you submit.
-            </p>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Exam workspace</p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="truncate text-lg font-semibold tracking-tight text-slate-950 sm:text-xl">{paperIdentifier}</h1>
+              {attempt.paper.paperCode && attempt.paper.paperCode !== attempt.paper.title ? (
+                <span className="truncate text-sm text-slate-500">{attempt.paper.title}</span>
+              ) : null}
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-3 text-sm text-slate-600">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="font-medium text-slate-900">Question {Math.min(answeredCount + 1, totalQuestions)} prep</p>
-              <p>{answeredCount} of {totalQuestions} answered</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="font-medium text-slate-900">Save state</p>
-              <p>{saveLabel}{lastSavedAt ? ` · ${lastSavedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}</p>
-            </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 sm:text-sm">
+            <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+              Answered {answeredCount}/{totalQuestions}
+            </span>
+            <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+              Marks {attempt.totalMaxMarks}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+              {saveStatus === 'saved' ? <CheckCircle2 className="size-3.5" /> : <CircleDot className="size-3.5" />}
+              {saveLabel}
+              {lastSavedAt ? ` · ${lastSavedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
+            </span>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 lg:min-w-[18rem] lg:items-end">
-          <div className={cn(
-            'w-full rounded-3xl border px-4 py-4 text-right lg:w-auto lg:min-w-[16rem]',
-            timer.tone === 'urgent'
-              ? 'border-red-200 bg-red-50 text-red-900'
-              : timer.tone === 'warning'
-                ? 'border-amber-200 bg-amber-50 text-amber-900'
-                : 'border-slate-200 bg-slate-50 text-slate-900',
-          )}>
-            <div className="flex items-center justify-end gap-2 text-xs font-semibold uppercase tracking-[0.18em]">
-              <Clock3 className="size-4" /> Time remaining
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:flex-none">
+          <div
+            className={cn(
+              'rounded-2xl border px-4 py-3 sm:min-w-[12rem]',
+              timer.tone === 'urgent'
+                ? 'border-red-200 bg-red-50 text-red-900'
+                : timer.tone === 'warning'
+                  ? 'border-amber-200 bg-amber-50 text-amber-900'
+                  : 'border-slate-200 bg-slate-50 text-slate-900',
+            )}
+          >
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-80">
+              <Clock3 className="size-4" />
+              Time remaining
             </div>
-            <p className="mt-2 text-3xl font-semibold tracking-tight">{timer.label}</p>
-            <p className="mt-1 text-sm opacity-80">{attempt.paper.durationMinutes ? `${attempt.paper.durationMinutes} minute paper` : 'Timed from server timestamps'}</p>
+            <p className="mt-1 font-mono text-2xl font-semibold tracking-tight">{timer.label}</p>
           </div>
 
-          <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto">
-            <Button disabled={!editable || saveDisabled} onClick={onSave} type="button" variant="outline">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            <Button className="min-w-[6.5rem]" disabled={!editable || saveDisabled} onClick={onSave} type="button" variant="outline">
               <Save className="size-4" />
               {saveStatus === 'saving' ? 'Saving…' : 'Save'}
             </Button>
-            <Button disabled={!editable || submitDisabled} onClick={onSubmit} type="button">
+            <Button className="min-w-[7rem]" disabled={!editable || submitDisabled} onClick={onSubmit} type="button">
               <Send className="size-4" /> Submit
             </Button>
-          </div>
-
-          <div className="flex flex-wrap justify-end gap-2">
-            <Badge className="bg-emerald-50 text-emerald-700">Answered: {answeredCount}</Badge>
-            <Badge className="bg-slate-100 text-slate-700">Remaining: {Math.max(totalQuestions - answeredCount, 0)}</Badge>
-            <Badge className="bg-slate-100 text-slate-700">Marks: {attempt.totalMaxMarks}</Badge>
           </div>
         </div>
       </CardContent>
