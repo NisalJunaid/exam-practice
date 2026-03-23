@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Enums\QuestionType;
+use App\Enums\VisualReferenceType;
 use App\Models\Paper;
 use App\Models\PaperQuestion;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -19,6 +21,7 @@ class PaperQuestionFactory extends Factory
             'paper_id' => Paper::factory(),
             'question_number' => (string) fake()->numberBetween(1, 12),
             'question_key' => fake()->optional()->regexify('[1-9]\([a-d]\)'),
+            'question_type' => fake()->randomElement(array_column(QuestionType::cases(), 'value')),
             'question_text' => fake()->paragraphs(2, true),
             'reference_answer' => fake()->paragraph(),
             'max_marks' => fake()->numberBetween(1, 10),
@@ -26,6 +29,10 @@ class PaperQuestionFactory extends Factory
             'sample_full_mark_answer' => fake()->optional()->paragraph(),
             'order_index' => fake()->numberBetween(1, 20),
             'stem_context' => fake()->optional()->sentence(),
+            'requires_visual_reference' => false,
+            'visual_reference_type' => fake()->optional()->randomElement(array_column(VisualReferenceType::cases(), 'value')),
+            'visual_reference_note' => fake()->optional()->sentence(),
+            'has_visual' => false,
         ];
     }
 }

@@ -14,7 +14,7 @@ class ApproveDocumentImportRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'publish' => ['sometimes', 'boolean'],
+            'override_missing_visuals' => ['sometimes', 'boolean'],
         ];
     }
 }

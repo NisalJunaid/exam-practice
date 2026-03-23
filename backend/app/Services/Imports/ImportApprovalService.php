@@ -3,7 +3,6 @@
 namespace App\Services\Imports;
 
 use App\Enums\DocumentImportStatus;
-use App\Enums\ImportMatchStatus;
 use App\Models\DocumentImport;
 use App\Models\ExamBoard;
 use App\Models\ExamLevel;
@@ -16,32 +15,30 @@ use RuntimeException;
 
 class ImportApprovalService
 {
-    public function approve(DocumentImport $import): Paper
+    public function __construct(private readonly ImportVisualAssetService $visualAssetService) {}
+
+    public function approve(DocumentImport $import, bool $overrideMissingVisuals = false): Paper
     {
         if ($import->status !== DocumentImportStatus::NeedsReview) {
             throw new RuntimeException('Only draft imports in needs_review can be approved.');
         }
 
-        $unresolvedItems = $import->items()
-            ->whereNotIn('match_status', [ImportMatchStatus::Matched, ImportMatchStatus::Resolved])
-            ->count();
+        $items = $import->items()->with('visualAssets')->orderBy('order_index')->get();
 
-        if ($unresolvedItems > 0) {
-            throw new RuntimeException('Resolve all ambiguous or unmatched import items before approval.');
+        if ($items->isEmpty()) {
+            throw new RuntimeException('Approve at least one import item before approval.');
         }
 
-        return DB::transaction(function () use ($import) {
+        $missingRequiredVisuals = $items
+            ->filter(fn ($item) => $item->requires_visual_reference && $item->visualAssets->isEmpty())
+            ->count();
+
+        if ($missingRequiredVisuals > 0 && ! $overrideMissingVisuals) {
+            throw new RuntimeException('Upload visuals for all image-dependent questions or approve with an explicit override.');
+        }
+
+        return DB::transaction(function () use ($import, $items, $missingRequiredVisuals, $overrideMissingVisuals) {
             $paper = $this->createPaperFromImport($import);
-            $items = $import->items()
-                ->where('is_approved', true)
-                ->whereIn('match_status', [ImportMatchStatus::Matched, ImportMatchStatus::Resolved])
-                ->orderBy('order_index')
-                ->get();
-
-            if ($items->isEmpty()) {
-                throw new RuntimeException('Approve at least one matched or resolved import item before approval.');
-            }
-
             $this->createQuestionsFromImportItems($paper, $items);
             $this->attachSourceFiles($paper, $import);
 
@@ -53,11 +50,12 @@ class ImportApprovalService
                 'processed_at' => now(),
                 'summary' => array_merge($import->summary ?? [], [
                     'approvedItems' => $items->count(),
-                    'pendingItems' => $import->items()->where('is_approved', false)->count(),
+                    'missingRequiredVisuals' => $missingRequiredVisuals,
+                    'overrideMissingVisuals' => $overrideMissingVisuals,
                 ]),
             ]);
 
-            return $paper->load(['subject.examBoard', 'subject.examLevel', 'questions.rubric', 'sourceFiles']);
+            return $paper->load(['subject.examBoard', 'subject.examLevel', 'questions.rubric', 'questions.visualAssets']);
         });
     }
 
@@ -80,11 +78,11 @@ class ImportApprovalService
         $subject = $board->subjects()->firstOrCreate(
             [
                 'exam_level_id' => $level->id,
-                'slug' => Str::slug(($metadata['subjectName'] ?? 'Imported Subject').'-'.($metadata['subjectCode'] ?? 'paper')),
+                'slug' => Str::slug(($metadata['subject'] ?? 'Imported Subject').'-'.($metadata['paper_code'] ?? 'paper')),
             ],
             [
-                'name' => $metadata['subjectName'] ?? 'Imported Subject',
-                'code' => $metadata['subjectCode'] ?? null,
+                'name' => $metadata['subject'] ?? 'Imported Subject',
+                'code' => $metadata['paper_code'] ?? null,
             ],
         );
 
@@ -92,15 +90,15 @@ class ImportApprovalService
             'subject_id' => $subject->id,
             'title' => $metadata['title'] ?? 'Imported Paper',
             'slug' => Str::slug(($metadata['title'] ?? 'imported-paper').'-'.$import->id),
-            'paper_code' => $metadata['paperCode'] ?? null,
+            'paper_code' => $metadata['paper_code'] ?? null,
             'year' => $metadata['year'] ?? null,
             'session' => $metadata['session'] ?? null,
-            'duration_minutes' => $metadata['durationMinutes'] ?? null,
+            'duration_minutes' => $metadata['duration_minutes'] ?? null,
             'total_marks' => 0,
-            'instructions' => 'Imported via admin review pipeline. Draft review approved; publication remains manual.',
+            'instructions' => $metadata['instructions'] ?? 'Imported via JSON admin review pipeline. Publication remains manual.',
             'is_published' => false,
-            'source_question_paper_path' => $import->question_paper_path,
-            'source_mark_scheme_path' => $import->mark_scheme_path,
+            'source_question_paper_path' => $import->json_file_path,
+            'source_mark_scheme_path' => null,
         ]);
     }
 
@@ -111,19 +109,27 @@ class ImportApprovalService
                 'paper_id' => $paper->id,
                 'question_number' => $item->question_number ?? Str::before((string) $item->question_key, '('),
                 'question_key' => $item->question_key,
+                'question_type' => $item->question_type,
                 'question_text' => $item->question_text,
                 'reference_answer' => $item->reference_answer ?? $item->marking_guidelines ?? 'Imported answer guidance pending.',
-                'max_marks' => $item->resolved_max_marks ?? $item->mark_scheme_marks ?? $item->question_paper_marks ?? 1,
+                'max_marks' => $item->resolved_max_marks ?? $item->mark_scheme_marks ?? $item->question_paper_marks ?? 0,
                 'marking_guidelines' => $item->marking_guidelines,
+                'sample_full_mark_answer' => $item->sample_full_mark_answer,
                 'order_index' => $index + 1,
                 'stem_context' => $item->stem_context,
+                'requires_visual_reference' => $item->requires_visual_reference,
+                'visual_reference_type' => $item->visual_reference_type,
+                'visual_reference_note' => $item->visual_reference_note,
+                'has_visual' => $item->visualAssets->isNotEmpty(),
             ]);
 
             $question->rubric()->create([
-                'band_descriptor' => data_get($item->raw_mark_scheme_payload, 'band_descriptor'),
+                'band_descriptor' => null,
                 'keywords_expected' => $this->extractKeywords($item->reference_answer),
                 'marker_notes' => $item->marking_guidelines ?? $item->reference_answer,
             ]);
+
+            $this->visualAssetService->cloneToPaperQuestion($item, $question);
         });
     }
 

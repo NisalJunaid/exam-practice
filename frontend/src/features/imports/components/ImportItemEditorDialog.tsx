@@ -1,31 +1,36 @@
+import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
-import type { DocumentImportItem, ImportMatchStatus } from '../types'
-import { getSourcePages } from '../utils'
+import type { DocumentImportItem, QuestionType, VisualReferenceType } from '../types'
+import { formatQuestionType, getSourcePages } from '../utils'
 import { ImportMatchStatusBadge } from './ImportMatchStatusBadge'
+import { ImportVisualUploader } from './ImportVisualUploader'
 
 export interface EditableImportItem {
   id: number
   questionKey: string
+  questionNumber: string
+  parentKey: string
+  questionType: QuestionType
+  stemContext: string
   questionText: string
   referenceAnswer: string
   markingGuidelines: string
+  sampleFullMarkAnswer: string
   resolvedMaxMarks: number
-  matchStatus: ImportMatchStatus
+  requiresVisualReference: boolean
+  visualReferenceType: VisualReferenceType
+  visualReferenceNote: string
+  flags: DocumentImportItem['flags']
+  questionPageNumber: number | null
+  markSchemePageNumber: number | null
   adminNotes: string
   isApproved: boolean
 }
@@ -35,126 +40,125 @@ interface ImportItemEditorDialogProps {
   draft: EditableImportItem | null
   open: boolean
   isSaving: boolean
+  isUploadingVisuals: boolean
+  isDeletingVisuals: boolean
   onOpenChange: (open: boolean) => void
   onSave: (draft: EditableImportItem) => void
+  onUploadVisuals: (itemId: number, files: FileList | null) => void
+  onDeleteVisual: (visualId: number) => void
 }
 
-export function ImportItemEditorDialog({ item, draft, open, isSaving, onOpenChange, onSave }: ImportItemEditorDialogProps) {
+const questionTypes: QuestionType[] = ['short_answer', 'structured', 'table', 'diagram_label', 'calculation', 'multiple_part', 'essay', 'other']
+const visualTypes: Exclude<VisualReferenceType, null>[] = ['diagram', 'table', 'graph', 'chemical_structure', 'image', 'mixed']
+
+export function ImportItemEditorDialog({ item, draft, open, isSaving, isUploadingVisuals, isDeletingVisuals, onOpenChange, onSave, onUploadVisuals, onDeleteVisual }: ImportItemEditorDialogProps) {
   const [localDraft, setLocalDraft] = useState<EditableImportItem | null>(draft)
 
   useEffect(() => {
     setLocalDraft(draft)
   }, [draft])
 
-  if (!item || !localDraft) {
-    return null
-  }
+  if (!item || !localDraft) return null
 
-  const hasWarning = localDraft.matchStatus === 'ambiguous' || localDraft.matchStatus === 'paper_only' || localDraft.matchStatus === 'scheme_only'
+  const visualWarning = localDraft.requiresVisualReference && item.visualAssets.length === 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl" onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl">
         <DialogHeader>
-          <DialogTitle>Edit extracted item</DialogTitle>
+          <DialogTitle>Edit imported question</DialogTitle>
           <DialogDescription>
-            Review the extracted draft before confirmation. Changes here only affect the import draft until the full import is approved.
+            Review and adjust every field before approval. Draft visuals remain attached to the import item until the paper is confirmed.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-6 px-6 pb-2">
+        <div className="grid max-h-[75vh] gap-6 overflow-y-auto px-1 pb-2">
           <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-            <span className="font-medium text-slate-900">{item.questionKey || 'Untitled item'}</span>
-            <ImportMatchStatusBadge status={localDraft.matchStatus} />
-            <span>Source pages: {getSourcePages(item)}</span>
+            <span className="font-medium text-slate-900">{item.questionKey}</span>
+            <ImportMatchStatusBadge status={item.reviewStatus} />
+            <span>{getSourcePages(item)}</span>
           </div>
 
-          {hasWarning ? (
+          {visualWarning ? (
             <Alert className="border-amber-200 bg-amber-50 text-amber-900">
-              <AlertTitle>Needs careful review</AlertTitle>
-              <AlertDescription>
-                This item is currently {localDraft.matchStatus.replace('_', ' ')}. Resolve the text, marks, and notes before confirming the full paper import.
-              </AlertDescription>
+              <AlertTitle>Visual upload still required</AlertTitle>
+              <AlertDescription>This question is marked as image-dependent and does not yet have any uploaded draft visuals.</AlertDescription>
             </Alert>
           ) : null}
 
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="import-question-key">Question key</Label>
-              <Input id="import-question-key" value={localDraft.questionKey} onChange={(event) => setLocalDraft((current) => current ? { ...current, questionKey: event.target.value } : current)} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="import-resolved-max-marks">Resolved max marks</Label>
-              <Input
-                id="import-resolved-max-marks"
-                inputMode="numeric"
-                min={0}
-                type="number"
-                value={String(localDraft.resolvedMaxMarks)}
-                onChange={(event) => setLocalDraft((current) => current ? { ...current, resolvedMaxMarks: Number(event.target.value || 0) } : current)}
-              />
-            </div>
+            <Field label="Question key"><Input value={localDraft.questionKey} onChange={(event) => setLocalDraft({ ...localDraft, questionKey: event.target.value })} /></Field>
+            <Field label="Question number"><Input value={localDraft.questionNumber} onChange={(event) => setLocalDraft({ ...localDraft, questionNumber: event.target.value })} /></Field>
+            <Field label="Parent key"><Input value={localDraft.parentKey} onChange={(event) => setLocalDraft({ ...localDraft, parentKey: event.target.value })} /></Field>
+            <Field label="Question type">
+              <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" value={localDraft.questionType} onChange={(event) => setLocalDraft({ ...localDraft, questionType: event.target.value as QuestionType })}>
+                {questionTypes.map((type) => <option key={type} value={type}>{formatQuestionType(type)}</option>)}
+              </select>
+            </Field>
+            <Field label="Max marks"><Input type="number" min={0} value={String(localDraft.resolvedMaxMarks)} onChange={(event) => setLocalDraft({ ...localDraft, resolvedMaxMarks: Number(event.target.value || 0) })} /></Field>
+            <Field label="Question page"><Input type="number" min={0} value={localDraft.questionPageNumber ?? ''} onChange={(event) => setLocalDraft({ ...localDraft, questionPageNumber: event.target.value ? Number(event.target.value) : null })} /></Field>
+            <Field label="Mark scheme page"><Input type="number" min={0} value={localDraft.markSchemePageNumber ?? ''} onChange={(event) => setLocalDraft({ ...localDraft, markSchemePageNumber: event.target.value ? Number(event.target.value) : null })} /></Field>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="import-match-status">Match status</Label>
-            <select
-              id="import-match-status"
-              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-200"
-              value={localDraft.matchStatus}
-              onChange={(event) => setLocalDraft((current) => current ? { ...current, matchStatus: event.target.value as ImportMatchStatus } : current)}
-            >
-              <option value="matched">Matched</option>
-              <option value="resolved">Resolved</option>
-              <option value="ambiguous">Ambiguous</option>
-              <option value="paper_only">Question paper only</option>
-              <option value="scheme_only">Mark scheme only</option>
-            </select>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="import-question-text">Question text</Label>
-            <Textarea id="import-question-text" value={localDraft.questionText} onChange={(event) => setLocalDraft((current) => current ? { ...current, questionText: event.target.value } : current)} />
-          </div>
+          <Field label="Stem context"><Textarea value={localDraft.stemContext} onChange={(event) => setLocalDraft({ ...localDraft, stemContext: event.target.value })} /></Field>
+          <Field label="Question text"><Textarea value={localDraft.questionText} onChange={(event) => setLocalDraft({ ...localDraft, questionText: event.target.value })} /></Field>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="import-reference-answer">Answer preview / reference answer</Label>
-              <Textarea id="import-reference-answer" value={localDraft.referenceAnswer} onChange={(event) => setLocalDraft((current) => current ? { ...current, referenceAnswer: event.target.value } : current)} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="import-marking-guidelines">Marking guidelines</Label>
-              <Textarea id="import-marking-guidelines" value={localDraft.markingGuidelines} onChange={(event) => setLocalDraft((current) => current ? { ...current, markingGuidelines: event.target.value } : current)} />
-            </div>
+            <Field label="Reference answer"><Textarea value={localDraft.referenceAnswer} onChange={(event) => setLocalDraft({ ...localDraft, referenceAnswer: event.target.value })} /></Field>
+            <Field label="Marking guidelines"><Textarea value={localDraft.markingGuidelines} onChange={(event) => setLocalDraft({ ...localDraft, markingGuidelines: event.target.value })} /></Field>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="import-admin-notes">Admin notes</Label>
-            <Textarea id="import-admin-notes" value={localDraft.adminNotes} onChange={(event) => setLocalDraft((current) => current ? { ...current, adminNotes: event.target.value } : current)} />
+          <Field label="Sample full-mark answer"><Textarea value={localDraft.sampleFullMarkAnswer} onChange={(event) => setLocalDraft({ ...localDraft, sampleFullMarkAnswer: event.target.value })} /></Field>
+
+          <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+            <label className="flex items-center gap-3 text-sm font-medium text-slate-900">
+              <input type="checkbox" checked={localDraft.requiresVisualReference} onChange={(event) => setLocalDraft({ ...localDraft, requiresVisualReference: event.target.checked, visualReferenceType: event.target.checked ? localDraft.visualReferenceType ?? 'diagram' : null })} />
+              Requires visual reference
+            </label>
+            <label className="flex items-center gap-3 text-sm font-medium text-slate-900">
+              <input type="checkbox" checked={localDraft.isApproved} onChange={(event) => setLocalDraft({ ...localDraft, isApproved: event.target.checked })} />
+              Mark item ready for approval
+            </label>
+            <label className="flex items-center gap-3 text-sm text-slate-700">
+              <input type="checkbox" checked={localDraft.flags.needsReview} onChange={(event) => setLocalDraft({ ...localDraft, flags: { ...localDraft.flags, needsReview: event.target.checked } })} />
+              Needs manual review
+            </label>
+            <label className="flex items-center gap-3 text-sm text-slate-700">
+              <input type="checkbox" checked={localDraft.flags.lowConfidenceMatch} onChange={(event) => setLocalDraft({ ...localDraft, flags: { ...localDraft.flags, lowConfidenceMatch: event.target.checked } })} />
+              Low confidence extraction
+            </label>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-            <div>
-              <p className="font-medium text-slate-900">Ready for import</p>
-              <p className="text-slate-600">Toggle whether this draft row looks approved from a content-review perspective.</p>
+          {localDraft.requiresVisualReference ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Visual reference type">
+                <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" value={localDraft.visualReferenceType ?? 'diagram'} onChange={(event) => setLocalDraft({ ...localDraft, visualReferenceType: event.target.value as VisualReferenceType })}>
+                  {visualTypes.map((type) => <option key={type} value={type}>{formatQuestionType(type)}</option>)}
+                </select>
+              </Field>
+              <Field label="Visual reference note"><Textarea value={localDraft.visualReferenceNote} onChange={(event) => setLocalDraft({ ...localDraft, visualReferenceNote: event.target.value })} /></Field>
             </div>
-            <Button
-              type="button"
-              variant={localDraft.isApproved ? 'default' : 'outline'}
-              onClick={() => setLocalDraft((current) => current ? { ...current, isApproved: !current.isApproved } : current)}
-            >
-              {localDraft.isApproved ? 'Marked ready' : 'Mark as ready'}
-            </Button>
-          </div>
+          ) : null}
+
+          <Field label="Admin notes"><Textarea value={localDraft.adminNotes} onChange={(event) => setLocalDraft({ ...localDraft, adminNotes: event.target.value })} /></Field>
+
+          <ImportVisualUploader item={item} isUploading={isUploadingVisuals} isDeleting={isDeletingVisuals} onUpload={(files) => onUploadVisuals(item.id, files)} onDelete={onDeleteVisual} />
         </div>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={isSaving} type="button" onClick={() => onSave(localDraft)}>
-            {isSaving ? 'Saving…' : 'Save draft changes'}
-          </Button>
+          <Button disabled={isSaving} type="button" onClick={() => onSave(localDraft)}>{isSaving ? 'Saving…' : 'Save draft changes'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-2">
+      <Label>{label}</Label>
+      {children}
+    </div>
   )
 }

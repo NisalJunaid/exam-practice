@@ -4,9 +4,8 @@ namespace App\Enums;
 
 enum ImportMatchStatus: string
 {
-    case Matched = 'matched';
-    case PaperOnly = 'paper_only';
-    case SchemeOnly = 'scheme_only';
-    case Ambiguous = 'ambiguous';
-    case Resolved = 'resolved';
+    case Ready = 'ready';
+    case NeedsReview = 'needs_review';
+    case MissingVisual = 'missing_visual';
+    case Warning = 'warning';
 }

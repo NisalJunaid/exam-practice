@@ -49,9 +49,11 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::delete('/questions/{question}', [QuestionAdminController::class, 'destroy']);
 
     Route::get('/imports', [PaperImportController::class, 'index']);
-    Route::post('/imports', [PaperImportController::class, 'store']);
+    Route::post('/imports/json', [PaperImportController::class, 'store']);
     Route::get('/imports/{import}', [PaperImportController::class, 'show']);
     Route::get('/imports/{import}/items', [PaperImportController::class, 'items']);
     Route::put('/import-items/{item}', [PaperImportController::class, 'updateItem']);
+    Route::post('/import-items/{item}/visuals', [PaperImportController::class, 'uploadVisuals']);
+    Route::delete('/import-item-visuals/{visual}', [PaperImportController::class, 'destroyVisual']);
     Route::post('/imports/{import}/approve', [PaperImportController::class, 'approve']);
 });
