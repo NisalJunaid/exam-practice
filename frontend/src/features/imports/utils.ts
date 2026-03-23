@@ -1,11 +1,16 @@
-import type { DocumentImport, DocumentImportItem, ImportMatchStatus, ImportStatus } from './types'
+import type { DocumentImport, DocumentImportItem, ImportReviewStatus, ImportStatus, QuestionType } from './types'
 
 export function formatImportStatus(status: ImportStatus) {
-  return status.replace('_', ' ')
+  return status.replaceAll('_', ' ')
 }
 
-export function formatMatchStatus(status: ImportMatchStatus) {
-  return status.replace('_', ' ')
+export function formatReviewStatus(status: ImportReviewStatus) {
+  return status.replaceAll('_', ' ')
+}
+
+export function formatQuestionType(value: QuestionType | string | null | undefined) {
+  if (!value) return 'Unknown'
+  return value.replaceAll('_', ' ')
 }
 
 export function getImportStatusTone(status: ImportStatus) {
@@ -24,22 +29,19 @@ export function getImportStatusTone(status: ImportStatus) {
 }
 
 export function getCounts(summary: DocumentImport['summary'] | undefined, items: DocumentImportItem[]) {
-  const total = summary?.totalItems ?? items.length
-  const matched = summary && ('matchedItems' in summary || 'resolvedItems' in summary)
-    ? (summary.matchedItems ?? 0) + (summary.resolvedItems ?? 0)
-    : items.filter((item) => item.matchStatus === 'matched' || item.matchStatus === 'resolved').length
-  const ambiguous = summary?.ambiguousItems ?? items.filter((item) => item.matchStatus === 'ambiguous').length
-  const unmatched = summary && ('paperOnlyItems' in summary || 'schemeOnlyItems' in summary)
-    ? (summary.paperOnlyItems ?? 0) + (summary.schemeOnlyItems ?? 0)
-    : items.filter((item) => item.matchStatus === 'paper_only' || item.matchStatus === 'scheme_only').length
-
-  return { total, matched, ambiguous, unmatched }
+  return {
+    total: summary?.totalItems ?? items.length,
+    ready: summary?.readyItems ?? items.filter((item) => item.reviewStatus === 'ready').length,
+    warnings: summary?.warningItems ?? items.filter((item) => item.reviewStatus === 'warning' || item.reviewStatus === 'needs_review').length,
+    visualDependent: summary?.visualDependentItems ?? items.filter((item) => item.requiresVisualReference).length,
+    missingVisuals: summary?.missingRequiredVisuals ?? items.filter((item) => item.requiresVisualReference && item.visualAssets.length === 0).length,
+  }
 }
 
 export function getSourcePages(item: DocumentImportItem) {
   const pages = [
-    item.questionPageNumber ? `QP p.${item.questionPageNumber}` : null,
-    item.markSchemePageNumber ? `MS p.${item.markSchemePageNumber}` : null,
+    item.questionPageNumber ? `Question p.${item.questionPageNumber}` : null,
+    item.markSchemePageNumber ? `Mark scheme p.${item.markSchemePageNumber}` : null,
     item.pageNumber ? `Detected p.${item.pageNumber}` : null,
   ].filter(Boolean)
 

@@ -1,4 +1,5 @@
 import type { AttemptDetail } from '@/features/attempts/types'
+import type { ImportItemVisualAsset, QuestionType, VisualReferenceType } from '@/features/imports/types'
 
 export interface PaperSubjectSummary {
   id: number
@@ -24,10 +25,16 @@ export interface PaperQuestionSummary {
   id: number
   questionNumber: string
   questionKey: string | null
+  questionType: QuestionType
   questionText: string
   maxMarks: number
   orderIndex: number
   stemContext: string | null
+  requiresVisualReference: boolean
+  visualReferenceType: VisualReferenceType
+  visualReferenceNote: string | null
+  hasVisual: boolean
+  visualAssets: ImportItemVisualAsset[]
 }
 
 export interface PaperDetail extends PaperListItem {

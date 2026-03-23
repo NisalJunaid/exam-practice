@@ -96,6 +96,6 @@ class PaperCatalogService
 
     public function getPaperForStudent(Paper $paper): Paper
     {
-        return $paper->load(['subject.examBoard', 'subject.examLevel', 'questions']);
+        return $paper->load(['subject.examBoard', 'subject.examLevel', 'questions.visualAssets']);
     }
 }

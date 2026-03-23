@@ -30,10 +30,16 @@ class PaperDetailResource extends JsonResource
                 'id' => $question->id,
                 'questionNumber' => $question->question_number,
                 'questionKey' => $question->question_key,
+                'questionType' => $question->question_type?->value ?? $question->question_type,
                 'questionText' => $question->question_text,
                 'maxMarks' => $question->max_marks,
                 'orderIndex' => $question->order_index,
                 'stemContext' => $question->stem_context,
+                'requiresVisualReference' => $question->requires_visual_reference,
+                'visualReferenceType' => $question->visual_reference_type?->value ?? $question->visual_reference_type,
+                'visualReferenceNote' => $question->visual_reference_note,
+                'hasVisual' => $question->has_visual,
+                'visualAssets' => $question->relationLoaded('visualAssets') ? QuestionVisualAssetResource::collection($question->visualAssets) : [],
             ])->values(),
         ];
     }

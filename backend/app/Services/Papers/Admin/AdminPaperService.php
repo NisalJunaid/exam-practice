@@ -98,6 +98,7 @@ class AdminPaperService
             'subject.examBoard',
             'subject.examLevel',
             'questions.rubric',
+            'questions.visualAssets',
         ];
     }
 

@@ -1,15 +1,34 @@
 export type ImportStatus = 'uploaded' | 'processing' | 'needs_review' | 'approved' | 'failed'
-export type ImportMatchStatus = 'matched' | 'paper_only' | 'scheme_only' | 'ambiguous' | 'resolved'
+export type ImportReviewStatus = 'ready' | 'needs_review' | 'missing_visual' | 'warning'
+export type QuestionType = 'short_answer' | 'structured' | 'table' | 'diagram_label' | 'calculation' | 'multiple_part' | 'essay' | 'other'
+export type VisualReferenceType = 'diagram' | 'table' | 'graph' | 'chemical_structure' | 'image' | 'mixed' | null
 
-export interface ImportSourceFile {
+export interface ImportItemVisualAsset {
   id: number
-  role: string
+  assetRole: string
   disk: string
-  path: string
+  filePath: string
   originalName: string
-  mimeType: string
-  sizeBytes: number
-  paperId: number | null
+  mimeType: string | null
+  sortOrder: number
+  url: string | null
+}
+
+export interface ImportFlags {
+  needsReview: boolean
+  hasVisual: boolean
+  lowConfidenceMatch: boolean
+}
+
+export interface ImportPreviewSummary {
+  totalItems: number
+  readyItems?: number
+  needsReviewItems?: number
+  warningItems?: number
+  visualDependentItems?: number
+  missingRequiredVisuals?: number
+  approvedItems?: number
+  overrideMissingVisuals?: boolean
 }
 
 export interface DocumentImportItem {
@@ -17,36 +36,54 @@ export interface DocumentImportItem {
   questionKey: string
   parentKey: string | null
   questionNumber: string | null
+  questionType: QuestionType
   stemContext: string | null
   questionText: string | null
   referenceAnswer: string | null
   markingGuidelines: string | null
+  sampleFullMarkAnswer: string | null
   questionPaperMarks: number | null
   markSchemeMarks: number | null
   resolvedMaxMarks: number | null
-  matchStatus: ImportMatchStatus
+  reviewStatus: ImportReviewStatus
+  matchStatus: ImportReviewStatus
+  requiresVisualReference: boolean
+  visualReferenceType: VisualReferenceType
+  visualReferenceNote: string | null
+  hasVisual: boolean
+  flags: ImportFlags
   pageNumber: number | null
   questionPageNumber: number | null
   markSchemePageNumber: number | null
   orderIndex: number | null
   isApproved: boolean
   adminNotes: string | null
+  visualCount: number
+  visualAssets: ImportItemVisualAsset[]
   rawQuestionPayload?: Record<string, unknown> | null
   rawMarkSchemePayload?: Record<string, unknown> | null
+}
+
+export interface DocumentImportPreview {
+  paper?: Record<string, unknown>
+  questionTypes?: Partial<Record<QuestionType, number>>
+  counts?: ImportPreviewSummary
 }
 
 export interface DocumentImport {
   id: number
   status: ImportStatus
+  inputMethod: string | null
+  jsonFileName: string | null
   questionPaperName: string | null
   markSchemeName: string | null
   metadata: Record<string, unknown>
-  summary: Record<string, number>
+  summary: ImportPreviewSummary
+  preview: DocumentImportPreview
   reviewNotes: string | null
   errorMessage: string | null
   processedAt: string | null
   approvedPaperId: number | null
-  rawExtractionPayload: Record<string, unknown>
-  sourceFiles?: ImportSourceFile[]
+  rawJsonPayload: Record<string, unknown>
   items?: DocumentImportItem[]
 }

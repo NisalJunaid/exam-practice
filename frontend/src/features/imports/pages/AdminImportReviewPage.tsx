@@ -11,14 +11,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useApproveImport, useImportDetail, useImportItems, useUpdateImportItem } from '@/features/imports/hooks'
+import { useApproveImport, useDeleteImportItemVisual, useImportDetail, useImportItems, useUpdateImportItem, useUploadImportItemVisuals } from '@/features/imports/hooks'
 import type { DocumentImportItem } from '@/features/imports/types'
-import {
-  formatImportStatus,
-  getCounts,
-  getImportStatusTone,
-  stringifyMetadataValue,
-} from '@/features/imports/utils'
+import { formatImportStatus, formatQuestionType, getCounts, getImportStatusTone, stringifyMetadataValue } from '@/features/imports/utils'
 import { routes } from '@/lib/constants/routes'
 import { useToast } from '@/lib/toast/useToast'
 
@@ -29,12 +24,22 @@ import { ImportSummaryCard } from '../components/ImportSummaryCard'
 function toEditableItem(item: DocumentImportItem): EditableImportItem {
   return {
     id: item.id,
-    questionKey: item.questionKey ?? '',
+    questionKey: item.questionKey,
+    questionNumber: item.questionNumber ?? '',
+    parentKey: item.parentKey ?? '',
+    questionType: item.questionType,
+    stemContext: item.stemContext ?? '',
     questionText: item.questionText ?? '',
     referenceAnswer: item.referenceAnswer ?? '',
     markingGuidelines: item.markingGuidelines ?? '',
+    sampleFullMarkAnswer: item.sampleFullMarkAnswer ?? '',
     resolvedMaxMarks: item.resolvedMaxMarks ?? item.questionPaperMarks ?? item.markSchemeMarks ?? 0,
-    matchStatus: item.matchStatus,
+    requiresVisualReference: item.requiresVisualReference,
+    visualReferenceType: item.visualReferenceType,
+    visualReferenceNote: item.visualReferenceNote ?? '',
+    flags: item.flags,
+    questionPageNumber: item.questionPageNumber,
+    markSchemePageNumber: item.markSchemePageNumber,
     adminNotes: item.adminNotes ?? '',
     isApproved: item.isApproved,
   }
@@ -50,6 +55,8 @@ export function AdminImportReviewPage() {
   const importQuery = useImportDetail(importId)
   const itemsQuery = useImportItems(importId)
   const updateItem = useUpdateImportItem(importId)
+  const uploadVisuals = useUploadImportItemVisuals(importId)
+  const deleteVisual = useDeleteImportItemVisual(importId)
   const approveImport = useApproveImport(importId)
 
   const items = useMemo(() => itemsQuery.data ?? importQuery.data?.items ?? [], [itemsQuery.data, importQuery.data?.items])
@@ -66,41 +73,41 @@ export function AdminImportReviewPage() {
     })
   }, [items])
 
-  const dirtyItemIds = useMemo(() => {
-    return items
-      .filter((item) => {
-        const draft = drafts[item.id]
-        if (!draft) return false
-        return JSON.stringify(draft) !== JSON.stringify(toEditableItem(item))
-      })
-      .map((item) => item.id)
-  }, [drafts, items])
-
+  const dirtyItemIds = useMemo(() => items.filter((item) => JSON.stringify(drafts[item.id]) !== JSON.stringify(toEditableItem(item))).map((item) => item.id), [drafts, items])
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null
   const selectedDraft = selectedItem ? drafts[selectedItem.id] : null
-  const hasWarnings = counts.ambiguous > 0 || counts.unmatched > 0
-  const readyForApproval = importQuery.data?.status === 'needs_review' && dirtyItemIds.length === 0 && !hasWarnings && !approveImport.isPending
+  const missingVisuals = counts.missingVisuals > 0
+  const readyForApproval = importQuery.data?.status === 'needs_review' && dirtyItemIds.length === 0 && !approveImport.isPending && !importQuery.data?.approvedPaperId
 
   async function saveSingleDraft(draft: EditableImportItem) {
-    const original = items.find((item) => item.id === draft.id)
-    if (!original) return
+    const sourceItem = items.find((item) => item.id === draft.id)
 
     await updateItem.mutateAsync({
       itemId: draft.id,
       questionKey: draft.questionKey,
+      questionNumber: draft.questionNumber || null,
+      parentKey: draft.parentKey || null,
+      questionType: draft.questionType,
+      stemContext: draft.stemContext || null,
       questionText: draft.questionText,
+      referenceAnswer: draft.referenceAnswer || null,
+      markingGuidelines: draft.markingGuidelines || null,
+      sampleFullMarkAnswer: draft.sampleFullMarkAnswer || null,
       resolvedMaxMarks: draft.resolvedMaxMarks,
-      matchStatus: draft.matchStatus,
-      referenceAnswer: draft.referenceAnswer,
-      markingGuidelines: draft.markingGuidelines,
-      adminNotes: draft.adminNotes,
+      requiresVisualReference: draft.requiresVisualReference,
+      visualReferenceType: draft.requiresVisualReference ? draft.visualReferenceType : null,
+      visualReferenceNote: draft.visualReferenceNote || null,
+      flags: { ...draft.flags, hasVisual: sourceItem ? sourceItem.visualAssets.length > 0 : draft.flags.hasVisual },
+      questionPageNumber: draft.questionPageNumber,
+      markSchemePageNumber: draft.markSchemePageNumber,
+      adminNotes: draft.adminNotes || null,
       isApproved: draft.isApproved,
     })
   }
 
   async function handleSaveAll() {
     if (!dirtyItemIds.length) {
-      toast({ title: 'No draft changes to save', description: 'All extracted rows are already synced.', variant: 'info' })
+      toast({ title: 'No draft changes to save', description: 'All review edits are already synced.', variant: 'info' })
       return
     }
 
@@ -108,20 +115,39 @@ export function AdminImportReviewPage() {
       setIsSavingAll(true)
       for (const itemId of dirtyItemIds) {
         const draft = drafts[itemId]
-        if (draft) {
-          await saveSingleDraft(draft)
-        }
+        if (draft) await saveSingleDraft(draft)
       }
       await Promise.all([importQuery.refetch(), itemsQuery.refetch()])
-      toast({ title: 'Draft changes saved', description: 'Your item edits are now stored on the import draft.', variant: 'success' })
+      toast({ title: 'Draft changes saved', description: 'Your review edits are now stored on the import draft.', variant: 'success' })
     } catch (error) {
-      toast({
-        title: 'Could not save draft changes',
-        description: error instanceof Error ? error.message : 'Try saving again after reviewing the edited rows.',
-        variant: 'error',
-      })
+      toast({ title: 'Could not save draft changes', description: error instanceof Error ? error.message : 'Try saving again.', variant: 'error' })
     } finally {
       setIsSavingAll(false)
+    }
+  }
+
+  async function handleUploadVisuals(itemId: number, files: FileList | null) {
+    if (!files?.length) return
+
+    const formData = new FormData()
+    Array.from(files).forEach((file) => formData.append('files[]', file))
+
+    try {
+      await uploadVisuals.mutateAsync({ itemId, formData })
+      toast({ title: 'Visuals uploaded', description: 'Draft reference images are now attached to this import item.', variant: 'success' })
+      await Promise.all([importQuery.refetch(), itemsQuery.refetch()])
+    } catch (error) {
+      toast({ title: 'Could not upload visuals', description: error instanceof Error ? error.message : 'Try again.', variant: 'error' })
+    }
+  }
+
+  async function handleDeleteVisual(visualId: number) {
+    try {
+      await deleteVisual.mutateAsync(visualId)
+      toast({ title: 'Visual deleted', description: 'The draft visual asset has been removed.', variant: 'success' })
+      await Promise.all([importQuery.refetch(), itemsQuery.refetch()])
+    } catch (error) {
+      toast({ title: 'Could not delete visual', description: error instanceof Error ? error.message : 'Try again.', variant: 'error' })
     }
   }
 
@@ -130,134 +156,85 @@ export function AdminImportReviewPage() {
       setDrafts((current) => ({ ...current, [draft.id]: draft }))
       await saveSingleDraft(draft)
       await Promise.all([importQuery.refetch(), itemsQuery.refetch()])
-      toast({ title: 'Row updated', description: `Saved draft changes for ${draft.questionKey || 'the selected row'}.`, variant: 'success' })
+      toast({ title: 'Question updated', description: `Saved draft changes for ${draft.questionKey}.`, variant: 'success' })
       setSelectedItemId(null)
     } catch (error) {
-      toast({
-        title: 'Could not save row changes',
-        description: error instanceof Error ? error.message : 'Try editing the row again.',
-        variant: 'error',
-      })
+      toast({ title: 'Could not save question changes', description: error instanceof Error ? error.message : 'Try editing the item again.', variant: 'error' })
     }
   }
 
-  async function handleApproveImport() {
-    if (!importQuery.data) return
-
+  async function handleApproveImport(overrideMissingVisuals = false) {
     try {
-      const result = await approveImport.mutateAsync()
-      toast({
-        title: 'Paper import confirmed',
-        description: `${result.paperTitle} is now available in the admin paper inventory.`,
-        variant: 'success',
-      })
+      const result = await approveImport.mutateAsync(overrideMissingVisuals)
+      toast({ title: 'Paper import confirmed', description: `${result.paperTitle} is now available in the admin paper inventory.`, variant: 'success' })
       await Promise.all([importQuery.refetch(), itemsQuery.refetch()])
     } catch (error) {
-      toast({
-        title: 'Could not confirm import',
-        description: error instanceof Error ? error.message : 'Try again after resolving draft issues.',
-        variant: 'error',
-      })
+      toast({ title: 'Could not confirm import', description: error instanceof Error ? error.message : 'Try again after resolving issues.', variant: 'error' })
     }
   }
 
-  if (importQuery.isLoading) {
-    return <ReviewPageSkeleton />
-  }
-
-  if (importQuery.isError) {
-    return (
-      <EmptyState
-        title="Could not load import draft"
-        description={importQuery.error instanceof Error ? importQuery.error.message : 'Try again to load the import review.'}
-        action={<Button type="button" variant="outline" onClick={() => void importQuery.refetch()}>Retry</Button>}
-      />
-    )
-  }
-
-  if (!importQuery.data) {
-    return <EmptyState title="Import draft not found" description="This import may have been deleted or is not accessible from the current account." />
-  }
+  if (importQuery.isLoading) return <ReviewPageSkeleton />
+  if (importQuery.isError) return <EmptyState title="Could not load import draft" description={importQuery.error instanceof Error ? importQuery.error.message : 'Try again to load the import review.'} action={<Button type="button" variant="outline" onClick={() => void importQuery.refetch()}>Retry</Button>} />
+  if (!importQuery.data) return <EmptyState title="Import draft not found" description="This import may have been deleted or is not accessible from the current account." />
 
   const documentImport = importQuery.data
-  const approvedPaperId = documentImport.approvedPaperId
   const metadataEntries = Object.entries(documentImport.metadata ?? {})
-  const isProcessing = documentImport.status === 'processing' || documentImport.status === 'uploaded'
-  const hasApprovedPaper = Boolean(approvedPaperId)
+  const questionTypeEntries = Object.entries(documentImport.preview.questionTypes ?? {})
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Import review"
         title={`Import #${documentImport.id}`}
-        description="Review extracted draft metadata and extracted rows, save draft-only edits, then confirm the import when the paper is ready to become a real admin paper."
+        description="Validate the JSON-derived draft, edit extracted questions, attach reference visuals for image-dependent items, and confirm the final paper only after review."
         actions={(
           <div className="flex flex-wrap gap-3">
             <Button type="button" variant="outline" onClick={() => { void importQuery.refetch(); void itemsQuery.refetch() }}>
               <RefreshCcw className="size-4" />
               Refresh
             </Button>
-            <Button type="button" variant="outline" disabled={isSavingAll || !dirtyItemIds.length || isProcessing} onClick={() => void handleSaveAll()}>
+            <Button type="button" variant="outline" disabled={isSavingAll || !dirtyItemIds.length} onClick={() => void handleSaveAll()}>
               {isSavingAll ? <LoaderCircle className="size-4 animate-spin" /> : null}
-              Save Draft Changes
+              Save draft changes
             </Button>
-            <Button type="button" size="lg" disabled={!readyForApproval || isProcessing || hasApprovedPaper} onClick={() => void handleApproveImport()}>
+            <Button type="button" size="lg" disabled={!readyForApproval} onClick={() => void handleApproveImport(false)}>
               {approveImport.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-              Confirm and Import Paper
+              Confirm import
             </Button>
           </div>
         )}
       />
 
       <Alert className="border-blue-200 bg-blue-50 text-blue-900">
-        <AlertTitle>Draft-only extracted data</AlertTitle>
-        <AlertDescription>
-          Everything on this screen remains a draft until you click <span className="font-medium">Confirm and Import Paper</span>. Use this review to fix extraction issues before any final paper becomes available.
-        </AlertDescription>
+        <AlertTitle>Review-first workflow</AlertTitle>
+        <AlertDescription>The import draft is editable. Live paper, question, rubric, and final visual records are only created when you confirm the import.</AlertDescription>
       </Alert>
 
-      {documentImport.errorMessage ? (
-        <Alert className="border-red-200 bg-red-50 text-red-900">
-          <AlertTitle>Processing error</AlertTitle>
-          <AlertDescription>{documentImport.errorMessage}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {isProcessing ? (
-        <Alert className="border-blue-200 bg-blue-50 text-blue-900">
-          <AlertTitle>Extraction is still running</AlertTitle>
-          <AlertDescription>
-            The PDFs have been uploaded and are still being processed. This page refreshes automatically while the import status is {formatImportStatus(documentImport.status)}.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {hasWarnings ? (
+      {missingVisuals ? (
         <Alert className="border-amber-200 bg-amber-50 text-amber-900">
           <TriangleAlert className="mb-2 size-4" />
-          <AlertTitle>Review warnings before confirmation</AlertTitle>
+          <AlertTitle>Missing visuals for image-dependent questions</AlertTitle>
           <AlertDescription>
-            There are {counts.ambiguous} ambiguous rows and {counts.unmatched} unmatched rows. You can still inspect every item below and save draft corrections before approval.
+            {counts.missingVisuals} image-dependent question{counts.missingVisuals === 1 ? '' : 's'} still have no uploaded draft visuals.
+            <Button className="ml-3" type="button" variant="outline" onClick={() => void handleApproveImport(true)}>Approve with override</Button>
           </AlertDescription>
         </Alert>
       ) : null}
 
-      {hasApprovedPaper ? (
+      {documentImport.approvedPaperId ? (
         <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
           <AlertTitle>Paper import complete</AlertTitle>
           <AlertDescription>
-            This import has already created paper #{approvedPaperId}. You can continue auditing the draft record or open the final paper in admin.
-            {' '}
-            {approvedPaperId ? <Link className="font-medium underline" to={routes.admin.papers.byId(approvedPaperId)}>Open final paper</Link> : null}
+            Final paper #{documentImport.approvedPaperId} has been created. <Link className="font-medium underline" to={routes.admin.papers.byId(documentImport.approvedPaperId)}>Open final paper</Link>
           </AlertDescription>
         </Alert>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <ImportSummaryCard label="Total extracted" value={counts.total} helper="All extracted rows detected for this import draft." tone="info" />
-        <ImportSummaryCard label="Matched" value={counts.matched} helper="Rows with a confident question/mark scheme pairing." tone="success" />
-        <ImportSummaryCard label="Ambiguous" value={counts.ambiguous} helper="Rows needing manual review because pairing confidence is unclear." tone={counts.ambiguous ? 'warning' : 'default'} />
-        <ImportSummaryCard label="Unmatched" value={counts.unmatched} helper="Rows only found in one source document and likely needing edits." tone={counts.unmatched ? 'danger' : 'default'} />
+        <ImportSummaryCard label="Total questions" value={counts.total} helper="All draft questions in the canonical JSON import." tone="info" />
+        <ImportSummaryCard label="Ready" value={counts.ready} helper="Items currently ready for approval." tone="success" />
+        <ImportSummaryCard label="Warnings" value={counts.warnings} helper="Questions still carrying review flags." tone={counts.warnings ? 'warning' : 'default'} />
+        <ImportSummaryCard label="Missing visuals" value={counts.missingVisuals} helper="Image-dependent questions without uploaded draft visuals." tone={counts.missingVisuals ? 'danger' : 'default'} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
@@ -266,59 +243,52 @@ export function AdminImportReviewPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-1">
                 <CardTitle>Import status</CardTitle>
-                <CardDescription>Track extraction, review readiness, and approval state from one place.</CardDescription>
+                <CardDescription>Track schema validation, review progress, and approval state.</CardDescription>
               </div>
               <Badge className={getImportStatusTone(documentImport.status)}>{formatImportStatus(documentImport.status)}</Badge>
             </div>
           </CardHeader>
           <CardContent className="grid gap-4 text-sm text-slate-600 sm:grid-cols-2">
-            <StatusField label="Question paper" value={documentImport.questionPaperName ?? '—'} />
-            <StatusField label="Mark scheme" value={documentImport.markSchemeName ?? '—'} />
+            <StatusField label="Input method" value={documentImport.inputMethod ?? '—'} />
+            <StatusField label="Source JSON" value={documentImport.jsonFileName ?? documentImport.questionPaperName ?? 'Pasted JSON'} />
             <StatusField label="Processed at" value={documentImport.processedAt ? new Date(documentImport.processedAt).toLocaleString() : 'Pending'} />
-            <StatusField label="Unsaved row edits" value={String(dirtyItemIds.length)} />
-            <StatusField label="Review notes" value={documentImport.reviewNotes ?? '—'} />
+            <StatusField label="Unsaved edits" value={String(dirtyItemIds.length)} />
+            <StatusField label="Visual-dependent questions" value={String(counts.visualDependent)} />
             <StatusField label="Approved paper" value={documentImport.approvedPaperId ? `#${documentImport.approvedPaperId}` : 'Not imported yet'} />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Review checklist</CardTitle>
-            <CardDescription>Use these checks to keep the import workflow review-first.</CardDescription>
+            <CardTitle>Question type mix</CardTitle>
+            <CardDescription>Quick breakdown of imported question structures for review planning.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm text-slate-600">
-            <ChecklistRow done={!isProcessing} label="Extraction complete" />
-            <ChecklistRow done={items.length > 0} label="Extracted rows available" />
-            <ChecklistRow done={!dirtyItemIds.length} label="No unsaved draft edits" />
-            <ChecklistRow done={!hasWarnings} label="No ambiguous or unmatched rows" />
-            <ChecklistRow done={hasApprovedPaper} label="Final paper created after confirmation" />
+            {questionTypeEntries.length ? questionTypeEntries.map(([type, count]) => (
+              <div key={type} className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
+                <span className="font-medium text-slate-900">{formatQuestionType(type)}</span>
+                <span>{count}</span>
+              </div>
+            )) : <p>No question type data available.</p>}
           </CardContent>
         </Card>
       </div>
 
       <Tabs value={currentTab} onValueChange={setCurrentTab}>
         <TabsList>
-          <TabsTrigger value="review">Review rows</TabsTrigger>
-          <TabsTrigger value="metadata">Detected metadata</TabsTrigger>
+          <TabsTrigger value="review">Review questions</TabsTrigger>
+          <TabsTrigger value="metadata">Paper metadata</TabsTrigger>
         </TabsList>
 
         <TabsContent value="review">
           <Card>
             <CardHeader>
-              <CardTitle>Extracted rows</CardTitle>
-              <CardDescription>Inspect each extracted row, review warnings, and save draft corrections before approving the final import.</CardDescription>
+              <CardTitle>Draft questions</CardTitle>
+              <CardDescription>Every imported question remains editable until final approval. Upload visuals directly from the table for image-dependent items.</CardDescription>
             </CardHeader>
             <CardContent>
               {itemsQuery.isLoading && !items.length ? (
-                <div className="grid gap-3">
-                  {Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-14 w-full" />)}
-                </div>
-              ) : itemsQuery.isError ? (
-                <EmptyState
-                  title="Could not load extracted rows"
-                  description={itemsQuery.error instanceof Error ? itemsQuery.error.message : 'Try reloading the extracted rows.'}
-                  action={<Button type="button" variant="outline" onClick={() => void itemsQuery.refetch()}>Retry</Button>}
-                />
+                <div className="grid gap-3">{Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-14 w-full" />)}</div>
               ) : items.length ? (
                 <ImportItemReviewTable
                   items={items}
@@ -327,12 +297,10 @@ export function AdminImportReviewPage() {
                     setDrafts((current) => ({ ...current, [item.id]: current[item.id] ?? toEditableItem(item) }))
                     setSelectedItemId(item.id)
                   }}
+                  onUploadVisuals={(itemId, files) => void handleUploadVisuals(itemId, files)}
                 />
               ) : (
-                <EmptyState
-                  title="No extracted rows yet"
-                  description={isProcessing ? 'Extraction is still running. Refresh after processing completes to review the rows.' : 'No extracted rows were returned for this import.'}
-                />
+                <EmptyState title="No draft questions found" description="This import did not produce any draft question rows." />
               )}
             </CardContent>
           </Card>
@@ -341,8 +309,8 @@ export function AdminImportReviewPage() {
         <TabsContent value="metadata">
           <Card>
             <CardHeader>
-              <CardTitle>Detected metadata</CardTitle>
-              <CardDescription>Review the paper-level metadata detected from the uploaded PDFs before confirming the import.</CardDescription>
+              <CardTitle>Paper metadata</CardTitle>
+              <CardDescription>Review the top-level paper details before confirming the final paper import.</CardDescription>
             </CardHeader>
             <CardContent>
               {metadataEntries.length ? (
@@ -356,7 +324,7 @@ export function AdminImportReviewPage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState title="No metadata detected" description="The extractor did not return paper-level metadata for this import draft." />
+                <EmptyState title="No metadata detected" description="The JSON payload did not include paper-level metadata." />
               )}
             </CardContent>
           </Card>
@@ -364,14 +332,16 @@ export function AdminImportReviewPage() {
       </Tabs>
 
       <ImportItemEditorDialog
-        draft={selectedDraft}
         item={selectedItem}
+        draft={selectedDraft}
         open={Boolean(selectedItem && selectedDraft)}
         isSaving={updateItem.isPending}
-        onOpenChange={(open) => {
-          if (!open) setSelectedItemId(null)
-        }}
+        isUploadingVisuals={uploadVisuals.isPending}
+        isDeletingVisuals={deleteVisual.isPending}
+        onOpenChange={(open) => { if (!open) setSelectedItemId(null) }}
         onSave={(draft) => void handleSaveDialogDraft(draft)}
+        onUploadVisuals={(itemId, files) => void handleUploadVisuals(itemId, files)}
+        onDeleteVisual={(visualId) => void handleDeleteVisual(visualId)}
       />
     </div>
   )
@@ -386,25 +356,12 @@ function StatusField({ label, value }: { label: string; value: string }) {
   )
 }
 
-function ChecklistRow({ done, label }: { done: boolean; label: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
-      <div className={`flex size-7 items-center justify-center rounded-full ${done ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-        <CheckCircle2 className="size-4" />
-      </div>
-      <span className={done ? 'font-medium text-slate-900' : 'text-slate-600'}>{label}</span>
-    </div>
-  )
-}
-
 function ReviewPageSkeleton() {
   return (
     <div className="grid gap-6">
       <Skeleton className="h-20 w-full" />
       <Skeleton className="h-24 w-full" />
-      <div className="grid gap-4 md:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 w-full" />)}
-      </div>
+      <div className="grid gap-4 md:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 w-full" />)}</div>
       <Skeleton className="h-96 w-full" />
     </div>
   )

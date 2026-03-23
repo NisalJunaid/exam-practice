@@ -2,17 +2,15 @@
 
 namespace Tests\Feature;
 
-use App\Enums\ImportMatchStatus;
 use App\Enums\UserRole;
 use App\Models\DocumentImport;
 use App\Models\Paper;
+use App\Models\QuestionVisualAsset;
 use App\Models\User;
-use App\Services\Imports\Contracts\PdfPageExtractor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
-use Tests\Fakes\ArrayPdfPageExtractor;
 use Tests\TestCase;
 
 class AdminImportApprovalTest extends TestCase
@@ -31,123 +29,123 @@ class AdminImportApprovalTest extends TestCase
         Sanctum::actingAs($admin);
     }
 
-    public function test_admin_can_upload_import_and_store_source_files(): void
+    public function test_admin_can_create_a_valid_json_import_draft(): void
     {
-        $this->fakeExtraction();
-
-        $response = $this->withHeader('Accept', 'application/json')->post('/api/admin/imports', $this->uploadPayload());
+        $response = $this->postJson('/api/admin/imports/json', [
+            'raw_json' => json_encode($this->validPaperJson(), JSON_PRETTY_PRINT),
+        ]);
 
         $response->assertCreated()
             ->assertJsonPath('data.status', 'needs_review')
-            ->assertJsonPath('data.sourceFiles.0.role', 'question_paper')
-            ->assertJsonPath('data.sourceFiles.1.role', 'mark_scheme');
-
-        DocumentImport::query()->firstOrFail();
-
-        $this->assertCount(1, Storage::disk('local')->allFiles('imports/question-papers'));
-        $this->assertCount(1, Storage::disk('local')->allFiles('imports/mark-schemes'));
-        $this->assertDatabaseCount('paper_source_files', 2);
-    }
-
-    public function test_processing_job_creates_draft_items_for_review_only(): void
-    {
-        $this->fakeExtraction();
-
-        $response = $this->withHeader('Accept', 'application/json')->post('/api/admin/imports', $this->uploadPayload());
-        $importId = $response->json('data.id');
+            ->assertJsonPath('data.metadata.title', 'Cambridge IGCSE Biology 0610/42')
+            ->assertJsonPath('data.items.1.questionType', 'diagram_label')
+            ->assertJsonPath('data.items.1.reviewStatus', 'missing_visual');
 
         $this->assertDatabaseHas('document_imports', [
-            'id' => $importId,
             'status' => 'needs_review',
+            'input_method' => 'raw_json',
         ]);
         $this->assertDatabaseHas('document_import_items', [
-            'document_import_id' => $importId,
-            'question_key' => '1(a)',
-            'match_status' => 'matched',
-            'question_page_number' => 1,
-            'mark_scheme_page_number' => 1,
-        ]);
-        $this->assertDatabaseHas('document_import_items', [
-            'document_import_id' => $importId,
             'question_key' => '2(a)',
-            'match_status' => 'paper_only',
-            'is_approved' => false,
+            'question_type' => 'diagram_label',
+            'requires_visual_reference' => true,
+            'visual_reference_type' => 'diagram',
         ]);
-        $this->assertDatabaseMissing('papers', ['title' => 'Cambridge IGCSE Biology 0610/42']);
+        $this->assertDatabaseMissing('papers', [
+            'title' => 'Cambridge IGCSE Biology 0610/42',
+        ]);
     }
 
-    public function test_admin_can_fetch_review_summary_and_items(): void
+    public function test_invalid_json_schema_is_rejected(): void
     {
-        $this->fakeExtraction();
-        $importId = $this->withHeader('Accept', 'application/json')->post('/api/admin/imports', $this->uploadPayload())->json('data.id');
+        $payload = $this->validPaperJson();
+        unset($payload['paper']['title']);
+        $payload['questions'][1]['visual_reference_type'] = 'not_supported';
 
-        $showResponse = $this->getJson("/api/admin/imports/{$importId}");
-        $itemsResponse = $this->getJson("/api/admin/imports/{$importId}/items");
-
-        $showResponse->assertOk()
-            ->assertJsonPath('data.metadata.subjectName', 'Biology')
-            ->assertJsonPath('data.summary.matchedItems', 2)
-            ->assertJsonPath('data.summary.paperOnlyItems', 1)
-            ->assertJsonPath('data.summary.totalItems', 3);
-
-        $itemsResponse->assertOk()
-            ->assertJsonCount(3, 'data')
-            ->assertJsonPath('data.0.questionKey', '1(a)')
-            ->assertJsonPath('data.0.rawQuestionPayload.question_key', '1(a)')
-            ->assertJsonPath('data.0.rawMarkSchemePayload.question_key', '1(a)');
+        $this->postJson('/api/admin/imports/json', [
+            'raw_json' => json_encode($payload, JSON_PRETTY_PRINT),
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['paper.title']);
     }
 
-    public function test_admin_can_update_import_item_during_review(): void
+    public function test_admin_can_update_import_item(): void
     {
-        $this->fakeExtraction();
-        $importId = $this->withHeader('Accept', 'application/json')->post('/api/admin/imports', $this->uploadPayload())->json('data.id');
+        $importId = $this->createDraftImport();
         $import = DocumentImport::query()->findOrFail($importId);
-        $item = $import->items()->where('question_key', '2(a)')->firstOrFail();
+        $item = $import->items()->where('question_key', '3(a)')->firstOrFail();
 
         $response = $this->putJson("/api/admin/import-items/{$item->id}", [
-            'question_key' => '2(a)',
-            'question_number' => '2',
+            'question_key' => '3(a)',
+            'question_number' => '3',
             'parent_key' => null,
-            'stem_context' => 'Study the enzyme experiment.',
-            'question_text' => 'Describe one limitation in the experiment.',
-            'reference_answer' => 'Only one temperature was tested.',
-            'marking_guidelines' => 'Accept limited range or uncontrolled variables.',
-            'resolved_max_marks' => 2,
-            'match_status' => ImportMatchStatus::Resolved->value,
-            'admin_notes' => 'Resolved manually during review.',
+            'question_type' => 'multiple_part',
+            'stem_context' => 'Updated structured context.',
+            'question_text' => 'Explain the effect of temperature and justify your answer.',
+            'reference_answer' => 'Temperature increases kinetic energy until enzymes denature.',
+            'marking_guidelines' => 'Credit valid linked explanation points.',
+            'sample_full_mark_answer' => 'Higher temperature increases collisions, but excess heat denatures enzymes.',
+            'resolved_max_marks' => 5,
+            'requires_visual_reference' => false,
+            'visual_reference_type' => null,
+            'visual_reference_note' => null,
+            'flags' => [
+                'needs_review' => false,
+                'has_visual' => false,
+                'low_confidence_match' => false,
+            ],
+            'question_page_number' => 5,
+            'mark_scheme_page_number' => 9,
+            'admin_notes' => 'Updated after review.',
             'is_approved' => true,
         ]);
 
         $response->assertOk()
-            ->assertJsonPath('data.matchStatus', 'resolved')
-            ->assertJsonPath('data.isApproved', true)
-            ->assertJsonPath('data.referenceAnswer', 'Only one temperature was tested.');
+            ->assertJsonPath('data.questionType', 'multiple_part')
+            ->assertJsonPath('data.resolvedMaxMarks', 5)
+            ->assertJsonPath('data.reviewStatus', 'ready');
 
         $this->assertDatabaseHas('document_import_items', [
             'id' => $item->id,
-            'match_status' => 'resolved',
+            'question_type' => 'multiple_part',
+            'resolved_max_marks' => 5,
             'is_approved' => true,
         ]);
     }
 
-    public function test_admin_can_approve_reviewed_import_into_final_paper_records_without_publishing(): void
+    public function test_admin_can_upload_visuals_for_import_item(): void
     {
-        $this->fakeExtraction();
-        $importId = $this->withHeader('Accept', 'application/json')->post('/api/admin/imports', $this->uploadPayload())->json('data.id');
-        $import = DocumentImport::query()->findOrFail($importId);
-        $item = $import->items()->where('question_key', '2(a)')->firstOrFail();
+        $importId = $this->createDraftImport();
+        $item = DocumentImport::query()->findOrFail($importId)->items()->where('question_key', '2(a)')->firstOrFail();
 
-        $this->putJson("/api/admin/import-items/{$item->id}", [
-            'question_key' => '2(a)',
-            'question_number' => '2',
-            'question_text' => 'Describe one limitation in the experiment.',
-            'reference_answer' => 'Only one temperature was tested.',
-            'marking_guidelines' => 'Accept limited range or uncontrolled variables.',
-            'resolved_max_marks' => 2,
-            'match_status' => ImportMatchStatus::Resolved->value,
-            'admin_notes' => 'Resolved manually during review.',
-            'is_approved' => true,
-        ])->assertOk();
+        $response = $this->post("/api/admin/import-items/{$item->id}/visuals", [
+            'files' => [
+                UploadedFile::fake()->image('diagram-1.png'),
+                UploadedFile::fake()->image('diagram-2.png'),
+            ],
+            'asset_role' => 'diagram',
+        ], ['Accept' => 'application/json']);
+
+        $response->assertCreated()
+            ->assertJsonPath('item.visualCount', 2)
+            ->assertJsonPath('item.reviewStatus', 'warning');
+
+        $this->assertDatabaseCount('question_visual_assets', 2);
+        $this->assertDatabaseHas('question_visual_assets', [
+            'document_import_item_id' => $item->id,
+            'asset_role' => 'diagram',
+        ]);
+    }
+
+    public function test_admin_can_approve_import_with_visuals_and_create_final_records(): void
+    {
+        $importId = $this->createDraftImport();
+        $import = DocumentImport::query()->findOrFail($importId);
+        $visualItem = $import->items()->where('question_key', '2(a)')->firstOrFail();
+
+        $this->post("/api/admin/import-items/{$visualItem->id}/visuals", [
+            'files' => [UploadedFile::fake()->image('cell-diagram.png')],
+            'asset_role' => 'diagram',
+        ], ['Accept' => 'application/json'])->assertCreated();
 
         $approveResponse = $this->postJson("/api/admin/imports/{$importId}/approve");
 
@@ -155,93 +153,139 @@ class AdminImportApprovalTest extends TestCase
             ->assertJsonPath('data.isPublished', false);
 
         $paper = Paper::query()->findOrFail($approveResponse->json('data.paperId'));
+        $visualQuestion = $paper->questions()->where('question_key', '2(a)')->firstOrFail();
 
-        $this->assertSame(3, $paper->questions()->count());
+        $this->assertSame(4, $paper->questions()->count());
         $this->assertFalse($paper->is_published);
-        $this->assertDatabaseHas('document_imports', [
-            'id' => $importId,
-            'status' => 'approved',
-            'approved_paper_id' => $paper->id,
-        ]);
-        $this->assertDatabaseHas('paper_questions', [
-            'paper_id' => $paper->id,
-            'question_key' => '1(a)',
-            'max_marks' => 2,
+        $this->assertDatabaseHas('papers', [
+            'id' => $paper->id,
+            'title' => 'Cambridge IGCSE Biology 0610/42',
+            'is_published' => false,
         ]);
         $this->assertDatabaseHas('paper_questions', [
             'paper_id' => $paper->id,
             'question_key' => '2(a)',
-            'max_marks' => 2,
+            'question_type' => 'diagram_label',
+            'requires_visual_reference' => true,
+            'has_visual' => true,
+        ]);
+        $this->assertDatabaseHas('question_visual_assets', [
+            'paper_question_id' => $visualQuestion->id,
+            'document_import_item_id' => $visualItem->id,
+            'asset_role' => 'diagram',
         ]);
         $this->assertDatabaseHas('question_rubrics', [
-            'paper_question_id' => $paper->questions()->where('question_key', '2(a)')->firstOrFail()->id,
-        ]);
-        $this->assertDatabaseHas('paper_source_files', [
-            'document_import_id' => $importId,
-            'paper_id' => $paper->id,
-            'file_role' => 'question_paper',
-        ]);
-        $this->assertDatabaseHas('paper_source_files', [
-            'document_import_id' => $importId,
-            'paper_id' => $paper->id,
-            'file_role' => 'mark_scheme',
+            'paper_question_id' => $visualQuestion->id,
         ]);
     }
 
-    public function test_admin_cannot_approve_import_until_all_review_only_rows_are_resolved(): void
+    public function test_approve_requires_visuals_unless_override_is_explicit(): void
     {
-        $this->fakeExtraction();
-        $existingPaperCount = Paper::query()->count();
-        $importId = $this->withHeader('Accept', 'application/json')->post('/api/admin/imports', $this->uploadPayload())->json('data.id');
+        $importId = $this->createDraftImport();
 
         $this->postJson("/api/admin/imports/{$importId}/approve")
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Resolve all ambiguous or unmatched import items before approval.');
+            ->assertJsonPath('message', 'Upload visuals for all image-dependent questions or approve with an explicit override.');
 
-        $this->assertDatabaseHas('document_imports', [
-            'id' => $importId,
-            'status' => 'needs_review',
-            'approved_paper_id' => null,
-        ]);
-        $this->assertSame($existingPaperCount, Paper::query()->count());
+        $this->postJson("/api/admin/imports/{$importId}/approve", [
+            'override_missing_visuals' => true,
+        ])->assertOk();
     }
 
-    private function fakeExtraction(): void
+    private function createDraftImport(): int
     {
-        $this->app->instance(PdfPageExtractor::class, new ArrayPdfPageExtractor([
-            [
-                [
-                    'page_number' => 1,
-                    'text' => <<<'TEXT'
-Cambridge IGCSE Biology 0610/42
-May/June 2024
-Duration: 75 minutes
-1 Photosynthesis and leaves
-(a) State two observable features of a healthy leaf. [2]
-(b) Explain why chlorophyll is important for photosynthesis. [1]
-2 Enzyme investigation
-(a) Describe one limitation in the experiment. [2]
-TEXT,
-                ],
-            ],
-            [
-                [
-                    'page_number' => 1,
-                    'text' => <<<'TEXT'
-General marking principles
-1(a) green leaf; broad surface area [2]
-1(b) absorbs light energy for photosynthesis [1]
-TEXT,
-                ],
-            ],
-        ]));
+        $response = $this->postJson('/api/admin/imports/json', [
+            'raw_json' => json_encode($this->validPaperJson(), JSON_PRETTY_PRINT),
+        ]);
+
+        return (int) $response->json('data.id');
     }
 
-    private function uploadPayload(): array
+    private function validPaperJson(): array
     {
         return [
-            'question_paper' => UploadedFile::fake()->createWithContent('biology-paper.pdf', 'fake question paper binary'),
-            'mark_scheme' => UploadedFile::fake()->createWithContent('biology-mark-scheme.pdf', 'fake mark scheme binary'),
+            'paper' => [
+                'title' => 'Cambridge IGCSE Biology 0610/42',
+                'board' => 'Cambridge',
+                'level' => 'IGCSE',
+                'subject' => 'Biology',
+                'paper_code' => '0610/42',
+                'session' => 'May/June',
+                'year' => 2024,
+                'duration_minutes' => 75,
+                'total_marks' => 80,
+                'instructions' => 'Answer all questions.',
+            ],
+            'questions' => [
+                [
+                    'question_key' => '1(a)',
+                    'parent_key' => null,
+                    'sort_order' => 1,
+                    'question_type' => 'short_answer',
+                    'stem_context' => 'Photosynthesis and leaves',
+                    'question_text' => 'State two observable features of a healthy leaf.',
+                    'max_marks' => 2,
+                    'reference_answer' => 'Green colour and broad surface area.',
+                    'marking_guidelines' => 'Accept any two visible features.',
+                    'sample_full_mark_answer' => 'A healthy leaf is green and has a broad flat blade.',
+                    'requires_visual_reference' => false,
+                    'visual_reference_type' => null,
+                    'visual_reference_note' => '',
+                    'source' => ['question_page' => 1, 'mark_scheme_page' => 2],
+                    'flags' => ['needs_review' => false, 'has_visual' => false, 'low_confidence_match' => false],
+                ],
+                [
+                    'question_key' => '2(a)',
+                    'parent_key' => null,
+                    'sort_order' => 2,
+                    'question_type' => 'diagram_label',
+                    'stem_context' => 'Use the labelled cell diagram.',
+                    'question_text' => 'Label the nucleus and the cell membrane on the diagram.',
+                    'max_marks' => 2,
+                    'reference_answer' => 'Nucleus; cell membrane.',
+                    'marking_guidelines' => 'Accept labels that clearly indicate both structures.',
+                    'sample_full_mark_answer' => 'The nucleus should be labelled in the centre and the membrane on the outer boundary.',
+                    'requires_visual_reference' => true,
+                    'visual_reference_type' => 'diagram',
+                    'visual_reference_note' => 'Requires the original labelled cell diagram.',
+                    'source' => ['question_page' => 3, 'mark_scheme_page' => 6],
+                    'flags' => ['needs_review' => true, 'has_visual' => true, 'low_confidence_match' => false],
+                ],
+                [
+                    'question_key' => '2(b)',
+                    'parent_key' => '2',
+                    'sort_order' => 3,
+                    'question_type' => 'table',
+                    'stem_context' => 'Refer to the results table.',
+                    'question_text' => 'Complete the table to compare plant and animal cells.',
+                    'max_marks' => 3,
+                    'reference_answer' => 'Plant cells have a cell wall and chloroplasts; animal cells do not.',
+                    'marking_guidelines' => 'Credit correct entries in the table.',
+                    'sample_full_mark_answer' => 'Plant cells: cell wall, chloroplasts, large vacuole. Animal cells: none of these.',
+                    'requires_visual_reference' => false,
+                    'visual_reference_type' => null,
+                    'visual_reference_note' => '',
+                    'source' => ['question_page' => 4, 'mark_scheme_page' => 7],
+                    'flags' => ['needs_review' => false, 'has_visual' => false, 'low_confidence_match' => false],
+                ],
+                [
+                    'question_key' => '3(a)',
+                    'parent_key' => '3',
+                    'sort_order' => 4,
+                    'question_type' => 'structured',
+                    'stem_context' => 'Investigate how temperature affects enzyme activity.',
+                    'question_text' => 'Explain the effect of temperature on enzyme activity.',
+                    'max_marks' => 4,
+                    'reference_answer' => 'Activity increases to an optimum, then decreases due to denaturation.',
+                    'marking_guidelines' => 'Credit linked statements about collisions and denaturation.',
+                    'sample_full_mark_answer' => 'Increasing temperature raises kinetic energy and collisions until the optimum; after that the enzyme changes shape and activity falls.',
+                    'requires_visual_reference' => false,
+                    'visual_reference_type' => null,
+                    'visual_reference_note' => '',
+                    'source' => ['question_page' => 5, 'mark_scheme_page' => 9],
+                    'flags' => ['needs_review' => false, 'has_visual' => false, 'low_confidence_match' => false],
+                ],
+            ],
         ];
     }
 }

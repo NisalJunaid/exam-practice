@@ -78,7 +78,7 @@ class AdminQuestionService
 
     private function load(PaperQuestion $question): PaperQuestion
     {
-        return $question->load(['paper.subject.examBoard', 'paper.subject.examLevel', 'rubric']);
+        return $question->load(['paper.subject.examBoard', 'paper.subject.examLevel', 'rubric', 'visualAssets']);
     }
 
     private function prepareQuestionPayload(Paper $paper, array $attributes, ?PaperQuestion $question = null): array

@@ -14,6 +14,7 @@ class AdminQuestionResource extends JsonResource
             'paperId' => $this->paper_id,
             'questionNumber' => $this->question_number,
             'questionKey' => $this->question_key,
+            'questionType' => $this->question_type?->value ?? $this->question_type,
             'questionText' => $this->question_text,
             'referenceAnswer' => $this->reference_answer,
             'maxMarks' => $this->max_marks,
@@ -21,6 +22,11 @@ class AdminQuestionResource extends JsonResource
             'sampleFullMarkAnswer' => $this->sample_full_mark_answer,
             'orderIndex' => $this->order_index,
             'stemContext' => $this->stem_context,
+            'requiresVisualReference' => $this->requires_visual_reference,
+            'visualReferenceType' => $this->visual_reference_type?->value ?? $this->visual_reference_type,
+            'visualReferenceNote' => $this->visual_reference_note,
+            'hasVisual' => $this->has_visual,
+            'visualAssets' => $this->relationLoaded('visualAssets') ? QuestionVisualAssetResource::collection($this->visualAssets) : [],
             'rubric' => $this->whenLoaded('rubric', function (): ?array {
                 if (! $this->rubric) {
                     return null;

@@ -27,9 +27,12 @@ export const endpoints = {
     question: (questionId: string | number) => `/admin/questions/${questionId}`,
     updateRubric: (questionId: string | number) => `/admin/questions/${questionId}/rubric`,
     imports: '/admin/imports',
+    importsJson: '/admin/imports/json',
     import: (importId: string | number) => `/admin/imports/${importId}`,
     importItems: (importId: string | number) => `/admin/imports/${importId}/items`,
     importItem: (itemId: string | number) => `/admin/import-items/${itemId}`,
+    importItemVisuals: (itemId: string | number) => `/admin/import-items/${itemId}/visuals`,
+    importItemVisual: (visualId: string | number) => `/admin/import-item-visuals/${visualId}`,
     approveImport: (importId: string | number) => `/admin/imports/${importId}/approve`,
   },
 } as const

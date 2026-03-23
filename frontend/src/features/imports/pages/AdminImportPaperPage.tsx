@@ -1,4 +1,4 @@
-import { ArrowRight, FileSearch } from 'lucide-react'
+import { ArrowRight, FileJson } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import { EmptyState } from '@/components/common/EmptyState'
@@ -11,6 +11,7 @@ import { getCounts, getImportStatusTone } from '@/features/imports/utils'
 import { routes } from '@/lib/constants/routes'
 import { useToast } from '@/lib/toast/useToast'
 
+import { ImportJsonSampleCard } from '../components/ImportJsonSampleCard'
 import { ImportUploadForm } from '../components/ImportUploadForm'
 
 export function AdminImportPaperPage() {
@@ -24,14 +25,14 @@ export function AdminImportPaperPage() {
       const created = await createImport.mutateAsync(formData)
       toast({
         title: 'Import draft created',
-        description: 'The PDFs are uploaded and extraction has started. Review the draft before confirming the paper import.',
+        description: 'The canonical JSON was validated and a draft review record is ready.',
         variant: 'success',
       })
       navigate(routes.admin.imports.byId(created.id))
     } catch (error) {
       toast({
         title: 'Could not create import draft',
-        description: error instanceof Error ? error.message : 'Check the files and try again.',
+        description: error instanceof Error ? error.message : 'Check the JSON structure and try again.',
         variant: 'error',
       })
     }
@@ -41,16 +42,19 @@ export function AdminImportPaperPage() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="Admin imports"
-        title="Upload paper + mark scheme"
-        description="Create a draft import from source PDFs, let extraction finish, then review every extracted row before publishing the paper into the admin paper inventory."
+        title="JSON paper ingestion"
+        description="Import one canonical paper JSON payload, review every extracted question, upload reference visuals where needed, and only then confirm the final paper import."
       />
 
-      <ImportUploadForm isSubmitting={createImport.isPending} onSubmit={handleSubmit} />
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <ImportUploadForm isSubmitting={createImport.isPending} onSubmit={handleSubmit} />
+        <ImportJsonSampleCard />
+      </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Recent import drafts</CardTitle>
-          <CardDescription>Jump back into in-progress reviews or reopen completed imports to trace how a paper was generated.</CardDescription>
+          <CardDescription>Reopen previous JSON imports to continue review, attach visuals, or confirm the final paper.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
           {importsQuery.isLoading ? (
@@ -77,8 +81,8 @@ export function AdminImportPaperPage() {
                       <p className="font-medium text-slate-900">Import #{item.id}</p>
                       <Badge className={getImportStatusTone(item.status)}>{item.status.replace('_', ' ')}</Badge>
                     </div>
-                    <p className="text-sm text-slate-600">{item.questionPaperName ?? 'Unnamed question paper'} • {item.markSchemeName ?? 'Unnamed mark scheme'}</p>
-                    <p className="text-xs text-slate-500">{counts.total} rows • {counts.matched} matched • {counts.ambiguous} ambiguous • {counts.unmatched} unmatched</p>
+                    <p className="text-sm text-slate-600">{item.jsonFileName ?? item.questionPaperName ?? 'Pasted canonical JSON'}</p>
+                    <p className="text-xs text-slate-500">{counts.total} questions • {counts.visualDependent} visual-dependent • {counts.missingVisuals} missing visuals • {counts.warnings} warnings</p>
                   </div>
                   <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
                     Review import
@@ -90,8 +94,8 @@ export function AdminImportPaperPage() {
           ) : (
             <EmptyState
               title="No import drafts yet"
-              description="Upload a question paper PDF and mark scheme PDF to start the review-first import flow."
-              icon={<FileSearch className="size-5" />}
+              description="Upload or paste a canonical paper JSON payload to start the review-first import flow."
+              icon={<FileJson className="size-5" />}
             />
           )}
         </CardContent>
