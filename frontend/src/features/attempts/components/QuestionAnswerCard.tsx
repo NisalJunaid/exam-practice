@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { resolveAttemptQuestionInteraction } from '@/features/attempts/answerInteractions'
 import type { AttemptAnswerAsset, AttemptAnswerDraft, AttemptQuestion } from '@/features/attempts/types'
 import { cn } from '@/lib/utils/cn'
 
@@ -32,6 +33,7 @@ function getQuestionHeading(question: AttemptQuestion) {
 
 export function QuestionAnswerCard({ question, index, totalQuestions, draft, editable, isCurrent, isAnswered, onFocus, onChange, onUploadAsset, onUploadStateChange, onPrevious, onNext }: QuestionAnswerCardProps) {
   const heading = getQuestionHeading(question)
+  const { type: interactionType } = resolveAttemptQuestionInteraction(question)
 
   return (
     <Card className={cn('border-slate-200 bg-white', isCurrent ? 'border-blue-200 shadow-md shadow-blue-100/60' : 'shadow-sm')}>
@@ -43,7 +45,7 @@ export function QuestionAnswerCard({ question, index, totalQuestions, draft, edi
               {question.questionKey ? <Badge className="bg-slate-100 text-slate-700">{question.questionKey}</Badge> : null}
               <Badge className="bg-slate-100 text-slate-700">Question {question.questionNumber}</Badge>
               <Badge className="bg-slate-100 text-slate-700">{question.maxMarks} marks</Badge>
-              <Badge className="bg-violet-50 text-violet-700">{question.answerInteractionType.replaceAll('_', ' ')}</Badge>
+              <Badge className="bg-violet-50 text-violet-700">{interactionType.replaceAll('_', ' ')}</Badge>
               <Badge className={isAnswered ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}>{isAnswered ? 'Answered' : 'Unanswered'}</Badge>
             </div>
 
@@ -82,7 +84,7 @@ export function QuestionAnswerCard({ question, index, totalQuestions, draft, edi
               onUploadAsset={onUploadAsset}
               onUploadStateChange={onUploadStateChange}
               question={question}
-              key={`${question.id}:${question.answerInteractionType}:${question.updatedAt ?? 'na'}`}
+              key={`${question.id}:${interactionType}:${question.updatedAt ?? 'na'}`}
             />
           </div>
           <div className="flex items-center justify-between gap-3 text-xs text-slate-500">

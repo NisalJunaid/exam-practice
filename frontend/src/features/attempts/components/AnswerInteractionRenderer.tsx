@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 
+import { resolveAttemptQuestionInteraction } from '../answerInteractions'
 import type { AttemptAnswerAsset, AttemptAnswerDraft, AttemptQuestion } from '../types'
 
 interface Props {
@@ -65,12 +66,8 @@ function resolveCurrentAsset(question: AttemptQuestion, draft: AttemptAnswerDraf
 }
 
 export function AnswerInteractionRenderer({ question, draft, editable, onChange, onUploadAsset, onUploadStateChange }: Props) {
-  const type = question.answerInteractionType
+  const { type } = resolveAttemptQuestionInteraction(question)
   const config = question.interactionConfig ?? {}
-
-  if (!type) {
-    return <TextAnswer editable={editable} multiline value={draft.studentAnswer} onChange={(studentAnswer) => onChange({ ...draft, studentAnswer })} />
-  }
 
   switch (type) {
     case 'short_text':
@@ -244,6 +241,7 @@ function CanvasPlusTextInput({ draft, editable, onChange, onUploadAsset, onUploa
 
 function ImageUploadInput({ question, draft, editable, onChange, onUploadAsset }: Props) {
   const currentAsset = resolveCurrentAsset(question, draft, ['upload_asset_id'])
+  const { type } = resolveAttemptQuestionInteraction(question)
   return (
     <div className="grid gap-4">
       <div className="rounded-2xl border border-dashed border-slate-300 p-4">
@@ -253,7 +251,7 @@ function ImageUploadInput({ question, draft, editable, onChange, onUploadAsset }
           <input className="hidden" disabled={!editable} type="file" accept="image/*" onChange={async (event) => {
             const file = event.target.files?.[0]
             if (!file) return
-            const asset = await onUploadAsset(question.id, 'upload', file, { replace_existing: true, interaction_type: question.answerInteractionType })
+            const asset = await onUploadAsset(question.id, 'upload', file, { replace_existing: true, interaction_type: type })
             onChange(mergeDraft(draft, { upload_asset_id: asset.id }))
             event.target.value = ''
           }} />
@@ -320,6 +318,7 @@ function CanvasAssetInput({
   const [uploading, setUploading] = useState(false)
   const [previewUnavailable, setPreviewUnavailable] = useState(false)
 
+  const { type } = resolveAttemptQuestionInteraction(question)
   const canvasConfig = getCanvasConfig(question.interactionConfig)
   const width = Number(canvasConfig.width ?? 900)
   const height = Number(canvasConfig.height ?? 500)
@@ -431,7 +430,7 @@ function CanvasAssetInput({
         width,
         height,
         backgroundMode,
-        interaction_type: question.answerInteractionType,
+        interaction_type: type,
         replace_existing: true,
       })
       onChange(mergeDraft(draft, { [assetKey]: asset.id }))

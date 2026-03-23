@@ -236,33 +236,43 @@ class AdminPaperQuestionCrudTest extends TestCase
         ]);
 
         $this->putJson("/api/admin/questions/{$question->id}", [
-            'question_type' => 'multiple_part',
-            'answer_interaction_type' => 'multi_field',
+            'question_type' => 'diagram_label',
+            'answer_interaction_type' => 'canvas_draw',
             'interaction_config' => [
-                'fields' => [
-                    ['key' => 'method', 'label' => 'Method'],
-                    ['key' => 'result', 'label' => 'Result'],
+                'canvas' => [
+                    'width' => 1024,
+                    'height' => 640,
+                    'background_mode' => 'plain',
+                    'allow_pen' => true,
+                    'allow_eraser' => true,
+                    'allow_clear' => true,
+                    'allow_grid' => false,
                 ],
             ],
-            'question_text' => 'Explain the method and state the result.',
-            'reference_answer' => 'Method and result.',
+            'question_text' => 'Sketch the labelled apparatus.',
+            'reference_answer' => 'Correct labelled sketch.',
             'max_marks' => 6,
             'order_index' => 1,
         ])->assertOk()
-            ->assertJsonPath('data.answerInteractionType', 'multi_field')
-            ->assertJsonPath('data.interactionConfig.fields.0.key', 'method')
-            ->assertJsonPath('data.interactionConfig.fields.1.label', 'Result');
+            ->assertJsonPath('data.answerInteractionType', 'canvas_draw')
+            ->assertJsonPath('data.interactionConfig.canvas.width', 1024)
+            ->assertJsonPath('data.interactionConfig.canvas.height', 640);
 
         $this->assertDatabaseHas('paper_questions', [
             'id' => $question->id,
-            'answer_interaction_type' => 'multi_field',
+            'answer_interaction_type' => 'canvas_draw',
         ]);
 
         $question->refresh();
         $this->assertSame([
-            'fields' => [
-                ['key' => 'method', 'label' => 'Method'],
-                ['key' => 'result', 'label' => 'Result'],
+            'canvas' => [
+                'width' => 1024,
+                'height' => 640,
+                'background_mode' => 'plain',
+                'allow_pen' => true,
+                'allow_eraser' => true,
+                'allow_clear' => true,
+                'allow_grid' => false,
             ],
         ], $question->interaction_config);
     }
