@@ -35,6 +35,7 @@ export interface AttemptReviewQuestion {
   structuredAnswer: AttemptStructuredAnswer | null
   answerAssets: AttemptAnswerAsset[]
   isBlank: boolean
+  updatedAt: string | null
   awardedMarks: number | null
   maxMarks: number
   reasoning: string | null

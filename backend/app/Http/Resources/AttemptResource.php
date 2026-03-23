@@ -52,6 +52,7 @@ class AttemptResource extends JsonResource
                     'answerAssets' => AttemptAnswerAssetResource::collection($answer?->assets ?? collect())->resolve(),
                     'isBlank' => $answer?->is_blank ?? true,
                     'submittedAt' => optional($answer?->submitted_at)->toIso8601String(),
+                    'updatedAt' => optional($question->updated_at)->toIso8601String(),
                 ];
             })->values(),
         ];

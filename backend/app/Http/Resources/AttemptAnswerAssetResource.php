@@ -11,6 +11,7 @@ class AttemptAnswerAssetResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'attemptAnswerId' => $this->attempt_answer_id,
             'assetType' => $this->asset_type,
             'disk' => $this->disk,
             'filePath' => $this->file_path,

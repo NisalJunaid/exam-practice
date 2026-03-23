@@ -21,6 +21,7 @@ export type AnswerInteractionType =
 
 export interface AttemptAnswerAsset {
   id: number
+  attemptAnswerId: number
   assetType: string
   disk: string
   filePath: string
@@ -56,6 +57,7 @@ export interface AttemptQuestion {
   answerAssets: AttemptAnswerAsset[]
   isBlank: boolean
   submittedAt: string | null
+  updatedAt: string | null
 }
 
 export interface AttemptDetail {
@@ -107,4 +109,5 @@ export interface SaveAnswersPayload {
 export interface AttemptAnswerDraft {
   studentAnswer: string
   structuredAnswer: AttemptStructuredAnswer | null
+  clientSignature?: string
 }

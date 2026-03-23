@@ -21,6 +21,7 @@ interface QuestionAnswerCardProps {
   onFocus: (questionId: number) => void
   onChange: (questionId: number, draft: AttemptAnswerDraft) => void
   onUploadAsset: (questionId: number, assetType: string, file: File, metadata?: Record<string, unknown>) => Promise<AttemptAnswerAsset>
+  onUploadStateChange?: (questionId: number, status: 'idle' | 'uploading' | 'error') => void
   onPrevious?: () => void
   onNext?: () => void
 }
@@ -29,7 +30,7 @@ function getQuestionHeading(question: AttemptQuestion) {
   return question.questionKey || `Question ${question.questionNumber}`
 }
 
-export function QuestionAnswerCard({ question, index, totalQuestions, draft, editable, isCurrent, isAnswered, onFocus, onChange, onUploadAsset, onPrevious, onNext }: QuestionAnswerCardProps) {
+export function QuestionAnswerCard({ question, index, totalQuestions, draft, editable, isCurrent, isAnswered, onFocus, onChange, onUploadAsset, onUploadStateChange, onPrevious, onNext }: QuestionAnswerCardProps) {
   const heading = getQuestionHeading(question)
 
   return (
@@ -79,7 +80,9 @@ export function QuestionAnswerCard({ question, index, totalQuestions, draft, edi
               editable={editable}
               onChange={(nextDraft) => onChange(question.id, nextDraft)}
               onUploadAsset={onUploadAsset}
+              onUploadStateChange={onUploadStateChange}
               question={question}
+              key={`${question.id}:${question.answerInteractionType}:${question.updatedAt ?? 'na'}`}
             />
           </div>
           <div className="flex items-center justify-between gap-3 text-xs text-slate-500">

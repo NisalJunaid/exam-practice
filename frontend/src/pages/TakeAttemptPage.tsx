@@ -5,7 +5,7 @@ import { useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { EmptyState } from '@/components/common/EmptyState'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
-import { createDraftFromQuestion, isQuestionAnswered, sanitizeStructuredAnswerForApi } from '@/features/attempts/answerInteractions'
+import { createDraftFromQuestion, getQuestionDraftSignature, isQuestionAnswered, sanitizeStructuredAnswerForApi } from '@/features/attempts/answerInteractions'
 import { AttemptHeader } from '@/features/attempts/components/AttemptHeader'
 import { QuestionAnswerCard } from '@/features/attempts/components/QuestionAnswerCard'
 import { QuestionNavigator } from '@/features/attempts/components/QuestionNavigator'
@@ -38,8 +38,9 @@ export function TakeAttemptPage() {
 
   const [localAnswers, setLocalAnswers] = useState<Record<number, AttemptAnswerDraft>>({})
   const [dirtyQuestionIds, setDirtyQuestionIds] = useState<number[]>([])
+  const [uploadingQuestionIds, setUploadingQuestionIds] = useState<number[]>([])
   const [currentQuestionId, setCurrentQuestionId] = useState<number | null>(null)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'dirty' | 'uploading' | 'saving' | 'saved' | 'error'>('idle')
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false)
   const [autoSubmitting, setAutoSubmitting] = useState(false)
@@ -77,15 +78,31 @@ export function TakeAttemptPage() {
       return
     }
 
+    const resetQuestionIds: number[] = []
+
     setLocalAnswers((current) => {
       const next = { ...current }
       for (const question of attempt.questions) {
+        const nextSignature = getQuestionDraftSignature(question)
+        const currentDraft = current[question.id]
+        const signatureChanged = currentDraft?.clientSignature && currentDraft.clientSignature !== nextSignature
+
+        if (signatureChanged) {
+          next[question.id] = createDraftFromQuestion(question)
+          resetQuestionIds.push(question.id)
+          continue
+        }
+
         if (!latestDirtyIdsRef.current.includes(question.id)) {
           next[question.id] = createDraftFromQuestion(question)
         }
       }
       return next
     })
+
+    if (resetQuestionIds.length) {
+      setDirtyQuestionIds((dirtyIds) => dirtyIds.filter((id) => !resetQuestionIds.includes(id)))
+    }
   }, [attempt])
 
   useEffect(() => {
@@ -120,14 +137,14 @@ export function TakeAttemptPage() {
   }, [attempt, editable, saveMutation])
 
   useEffect(() => {
-    if (!editable || !dirtyQuestionIds.length) return
+    if (!editable || !dirtyQuestionIds.length || uploadingQuestionIds.length) return
 
     const timer = window.setTimeout(() => {
       void persistAnswers([...latestDirtyIdsRef.current])
     }, AUTOSAVE_DELAY_MS)
 
     return () => window.clearTimeout(timer)
-  }, [dirtyQuestionIds, editable, persistAnswers])
+  }, [dirtyQuestionIds, editable, persistAnswers, uploadingQuestionIds.length])
 
   useEffect(() => {
     if (!attempt) return
@@ -205,7 +222,8 @@ export function TakeAttemptPage() {
   }, [orderedQuestions])
 
   const handleAnswerChange = (questionId: number, draft: AttemptAnswerDraft) => {
-    setLocalAnswers((current) => ({ ...current, [questionId]: draft }))
+    const signature = attempt?.questions.find((question) => question.id === questionId)
+    setLocalAnswers((current) => ({ ...current, [questionId]: { ...draft, clientSignature: signature ? getQuestionDraftSignature(signature) : draft.clientSignature } }))
     setDirtyQuestionIds((current) => (current.includes(questionId) ? current : [...current, questionId]))
     setCurrentQuestionId(questionId)
     setSaveStatus('dirty')
@@ -226,6 +244,26 @@ export function TakeAttemptPage() {
     const asset = await uploadAssetMutation.mutateAsync(formData)
     await attemptQuery.refetch()
     return asset
+  }
+
+  const handleUploadStateChange = (questionId: number, status: 'idle' | 'uploading' | 'error') => {
+    setUploadingQuestionIds((current) => {
+      if (status === 'uploading') {
+        return current.includes(questionId) ? current : [...current, questionId]
+      }
+
+      return current.filter((id) => id !== questionId)
+    })
+
+    setSaveStatus((current) => {
+      if (status === 'uploading') return 'uploading'
+      if (status === 'error') return 'error'
+      if (current === 'uploading') {
+        return latestDirtyIdsRef.current.length ? 'dirty' : 'saved'
+      }
+
+      return current
+    })
   }
 
   const handleConfirmSubmit = async () => {
@@ -280,9 +318,9 @@ export function TakeAttemptPage() {
           lastSavedAt={lastSavedAt}
           onSave={() => void persistAnswers([...dirtyQuestionIds])}
           onSubmit={() => setSubmitDialogOpen(true)}
-          saveDisabled={saveMutation.isPending || !dirtyQuestionIds.length}
-          saveStatus={editable ? saveStatus : 'saved'}
-          submitDisabled={submitMutation.isPending || saveMutation.isPending || uploadAssetMutation.isPending}
+          saveDisabled={saveMutation.isPending || uploadingQuestionIds.length > 0 || !dirtyQuestionIds.length}
+          saveStatus={editable ? (uploadingQuestionIds.length ? 'uploading' : saveStatus) : 'saved'}
+          submitDisabled={submitMutation.isPending || saveMutation.isPending || uploadAssetMutation.isPending || uploadingQuestionIds.length > 0}
           onExpire={async () => {
             if (!attempt || !editable || autoSubmitting || submitMutation.isPending) return
             setAutoSubmitting(true)
@@ -329,6 +367,7 @@ export function TakeAttemptPage() {
                   onNext={index < orderedQuestions.length - 1 ? () => handleSelectQuestion(orderedQuestions[index + 1].id) : undefined}
                   onPrevious={index > 0 ? () => handleSelectQuestion(orderedQuestions[index - 1].id) : undefined}
                   onUploadAsset={handleUploadAsset}
+                  onUploadStateChange={handleUploadStateChange}
                   question={question}
                   totalQuestions={orderedQuestions.length}
                 />
