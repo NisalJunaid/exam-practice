@@ -1,12 +1,49 @@
 import type { QuestionVisualAsset } from '@/components/questions/QuestionVisualPanel'
 
 export type AttemptStatus = 'in_progress' | 'submitted' | 'marking' | 'completed' | 'failed'
+export type AnswerInteractionType =
+  | 'short_text'
+  | 'long_text'
+  | 'select_single'
+  | 'select_multiple'
+  | 'multi_field'
+  | 'table_input'
+  | 'calculation_with_working'
+  | 'canvas_draw'
+  | 'graph_plot'
+  | 'image_upload'
+  | 'canvas_plus_text'
+  | 'diagram_annotation'
+  | 'matching'
+  | 'mcq_single'
+  | 'mcq_multiple'
+  | 'other'
+
+export interface AttemptAnswerAsset {
+  id: number
+  assetType: string
+  disk: string
+  filePath: string
+  originalName: string | null
+  mimeType: string | null
+  metadata: Record<string, unknown>
+  url: string | null
+  createdAt: string | null
+}
+
+export interface AttemptStructuredAnswer {
+  [key: string]: unknown
+}
 
 export interface AttemptQuestion {
   id: number
+  answerId: number | null
   questionNumber: string
   questionKey: string | null
   questionText: string
+  questionType: string
+  answerInteractionType: AnswerInteractionType
+  interactionConfig: Record<string, unknown>
   stemContext: string | null
   maxMarks: number
   requiresVisualReference: boolean
@@ -15,6 +52,8 @@ export interface AttemptQuestion {
   hasVisual: boolean
   visualAssets: QuestionVisualAsset[]
   studentAnswer: string | null
+  structuredAnswer: AttemptStructuredAnswer | null
+  answerAssets: AttemptAnswerAsset[]
   isBlank: boolean
   submittedAt: string | null
 }
@@ -62,5 +101,10 @@ export interface SubmittedAttemptDetail extends AttemptDetail {
 }
 
 export interface SaveAnswersPayload {
-  answers: Array<{ paper_question_id: number; student_answer: string }>
+  answers: Array<{ paper_question_id: number; student_answer?: string | null; structured_answer?: AttemptStructuredAnswer | null }>
+}
+
+export interface AttemptAnswerDraft {
+  studentAnswer: string
+  structuredAnswer: AttemptStructuredAnswer | null
 }

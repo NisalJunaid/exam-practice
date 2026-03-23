@@ -23,50 +23,76 @@ const sampleJson = `{
       "parent_key": null,
       "sort_order": 1,
       "question_type": "short_answer",
-      "question_text": "State two observable features of a healthy leaf.",
-      "max_marks": 2,
-      "reference_answer": "Green colour and broad surface area.",
+      "answer_interaction_type": "select_single",
+      "interaction_config": {
+        "options": ["carbon", "chlorine", "glucose", "iron"]
+      },
+      "question_text": "Which element is responsible for carrying oxygen in haemoglobin?",
+      "max_marks": 1,
+      "reference_answer": "iron",
       "requires_visual_reference": false,
       "visual_reference_type": null,
       "source": { "question_page": 1, "mark_scheme_page": 2 },
       "flags": { "needs_review": false, "has_visual": false, "low_confidence_match": false }
     },
     {
-      "question_key": "2(a)",
+      "question_key": "2(c)(iv)",
       "parent_key": null,
       "sort_order": 2,
       "question_type": "diagram_label",
-      "question_text": "Label the nucleus and the cell membrane on the diagram.",
-      "max_marks": 2,
-      "reference_answer": "Nucleus; cell membrane.",
-      "requires_visual_reference": true,
-      "visual_reference_type": "diagram",
-      "visual_reference_note": "Requires the original labelled cell diagram.",
-      "source": { "question_page": 3, "mark_scheme_page": 6 },
-      "flags": { "needs_review": true, "has_visual": true, "low_confidence_match": false }
-    },
-    {
-      "question_key": "2(b)",
-      "parent_key": "2",
-      "sort_order": 3,
-      "question_type": "table",
-      "question_text": "Complete the table to compare plant and animal cells.",
+      "answer_interaction_type": "canvas_draw",
+      "interaction_config": {
+        "canvas": {
+          "width": 900,
+          "height": 500,
+          "background_mode": "plain",
+          "allow_pen": true,
+          "allow_eraser": true,
+          "allow_clear": true
+        }
+      },
+      "question_text": "Draw a dot-and-cross diagram for the bonding in magnesium oxide.",
       "max_marks": 3,
-      "reference_answer": "Plant cells have a cell wall and chloroplasts; animal cells do not.",
+      "reference_answer": "Correct transfer of electrons and bracketed ions.",
       "requires_visual_reference": false,
       "visual_reference_type": null,
+      "source": { "question_page": 3, "mark_scheme_page": 6 },
+      "flags": { "needs_review": true, "has_visual": false, "low_confidence_match": false }
+    },
+    {
+      "question_key": "2(d)(ii)",
+      "parent_key": "2",
+      "sort_order": 3,
+      "question_type": "diagram_label",
+      "answer_interaction_type": "diagram_annotation",
+      "interaction_config": {
+        "base_image_required": true,
+        "canvas_overlay": true,
+        "allow_text_labels": true
+      },
+      "question_text": "Annotate the pathway diagram to show the missing stages.",
+      "max_marks": 2,
+      "reference_answer": "Correct labels placed on the supplied visual.",
+      "requires_visual_reference": true,
+      "visual_reference_type": "diagram",
+      "visual_reference_note": "Requires the original labelled pathway diagram.",
       "source": { "question_page": 4, "mark_scheme_page": 7 },
-      "flags": { "needs_review": false, "has_visual": false, "low_confidence_match": false }
+      "flags": { "needs_review": false, "has_visual": true, "low_confidence_match": false }
     },
     {
       "question_key": "3(a)",
       "parent_key": "3",
       "sort_order": 4,
-      "question_type": "multiple_part",
-      "stem_context": "Investigate how temperature affects enzyme activity.",
-      "question_text": "Explain the effect of temperature on enzyme activity.",
+      "question_type": "calculation",
+      "answer_interaction_type": "calculation_with_working",
+      "interaction_config": {
+        "final_answer_label": "Final Answer",
+        "working_label": "Working",
+        "allow_units": true
+      },
+      "question_text": "Calculate the concentration of the acid and show your working.",
       "max_marks": 4,
-      "reference_answer": "Activity increases to an optimum, then decreases due to denaturation.",
+      "reference_answer": "0.080 dm3 with clear working.",
       "requires_visual_reference": false,
       "visual_reference_type": null,
       "source": { "question_page": 5, "mark_scheme_page": 9 },
@@ -76,10 +102,10 @@ const sampleJson = `{
 }`
 
 const guidance = [
-  ['short_answer', 'Simple text-only question with marks and reference answer.'],
-  ['diagram_label', 'Image-dependent question. Set requires_visual_reference=true and add a visual_reference_type.'],
-  ['table', 'Structured table completion question with standard source page references.'],
-  ['multiple_part', 'Use parent_key and stem_context to preserve grouped parts.'],
+  ['question_type', 'Keep the academic taxonomy separate from the answer UI so import review can distinguish pedagogy from rendering.'],
+  ['answer_interaction_type', 'Declare the student-facing interaction such as multi_field, table_input, canvas_draw, or diagram_annotation.'],
+  ['interaction_config', 'Include the render metadata needed by the frontend, including options, fields, table rows, and canvas settings.'],
+  ['requires_visual_reference', 'Use this together with visual_reference_type when the student must annotate or work from a supplied visual.'],
 ] as const
 
 export function ImportJsonSampleCard() {
@@ -96,7 +122,7 @@ export function ImportJsonSampleCard() {
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <CardTitle>Canonical JSON sample</CardTitle>
-            <CardDescription>Use this as a guide for the expected schema. This sample is reference-only and does not become the submitted import payload.</CardDescription>
+            <CardDescription>Use this as a guide for the expanded interaction-aware schema. This sample is reference-only and does not become the submitted import payload.</CardDescription>
           </div>
           <Button type="button" variant="outline" onClick={() => void handleCopy()}>
             <Copy className="size-4" />

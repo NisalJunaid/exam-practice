@@ -17,6 +17,7 @@ class UpdateAttemptAnswersRequest extends FormRequest
             'answers' => ['required', 'array', 'min:1'],
             'answers.*.paper_question_id' => ['required', 'integer', 'distinct', 'exists:paper_questions,id'],
             'answers.*.student_answer' => ['nullable', 'string'],
+            'answers.*.structured_answer' => ['nullable', 'array'],
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AnswerInteractionType;
 use App\Enums\QuestionType;
 use App\Enums\VisualReferenceType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,6 +20,8 @@ class PaperQuestion extends Model
         'question_number',
         'question_key',
         'question_type',
+        'answer_interaction_type',
+        'interaction_config',
         'question_text',
         'reference_answer',
         'max_marks',
@@ -34,6 +37,8 @@ class PaperQuestion extends Model
 
     protected $casts = [
         'question_type' => QuestionType::class,
+        'answer_interaction_type' => AnswerInteractionType::class,
+        'interaction_config' => 'array',
         'max_marks' => 'integer',
         'order_index' => 'integer',
         'requires_visual_reference' => 'boolean',

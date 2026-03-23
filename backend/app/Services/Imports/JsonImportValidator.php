@@ -4,11 +4,14 @@ namespace App\Services\Imports;
 
 use App\Enums\QuestionType;
 use App\Enums\VisualReferenceType;
+use App\Support\AnswerInteractions\AnswerInteractionSchema;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 
 class JsonImportValidator
 {
+    public function __construct(private readonly AnswerInteractionSchema $interactionSchema) {}
+
     public function validate(string|array $payload): array
     {
         $decoded = is_array($payload) ? $payload : json_decode($payload, true);
@@ -70,12 +73,21 @@ class JsonImportValidator
             }
 
             $source = is_array($question['source'] ?? null) ? $question['source'] : [];
+            $interaction = $this->interactionSchema->normalize(
+                questionType: $questionType,
+                answerInteractionType: $question['answer_interaction_type'] ?? null,
+                interactionConfig: $question['interaction_config'] ?? null,
+                requiresVisualReference: $requiresVisualReference,
+                errorPrefix: "questions.$index.answer_interaction_type",
+            );
 
             $normalizedQuestions[] = [
                 'question_key' => $this->requireString($question, 'question_key', $index),
                 'parent_key' => $this->nullableString($question, 'parent_key'),
                 'sort_order' => $this->requireInteger($question, 'sort_order', $index, minimum: 0),
                 'question_type' => $questionType,
+                'answer_interaction_type' => $interaction['answer_interaction_type'],
+                'interaction_config' => $interaction['interaction_config'],
                 'stem_context' => $this->nullableString($question, 'stem_context'),
                 'question_text' => $this->requireString($question, 'question_text', $index),
                 'max_marks' => $this->requireInteger($question, 'max_marks', $index, minimum: 0),

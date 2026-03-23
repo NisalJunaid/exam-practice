@@ -18,6 +18,8 @@ class DocumentImportItemResource extends JsonResource
             'parentKey' => $this->parent_key,
             'questionNumber' => $this->question_number,
             'questionType' => $this->question_type?->value ?? $this->question_type,
+            'answerInteractionType' => $this->answer_interaction_type?->value ?? $this->answer_interaction_type,
+            'interactionConfig' => $this->interaction_config ?? [],
             'stemContext' => $this->stem_context,
             'questionText' => $this->question_text,
             'referenceAnswer' => $this->reference_answer,

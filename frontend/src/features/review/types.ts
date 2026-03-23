@@ -1,5 +1,5 @@
 import type { QuestionVisualAsset } from '@/components/questions/QuestionVisualPanel'
-import type { AttemptDetail, AttemptStatus } from '@/features/attempts/types'
+import type { AttemptAnswerAsset, AttemptDetail, AttemptStatus, AttemptStructuredAnswer } from '@/features/attempts/types'
 
 export interface AttemptResultQuestion {
   id: number
@@ -26,9 +26,14 @@ export interface AttemptReviewQuestion {
   questionNumber: string
   questionKey: string | null
   questionText: string
+  questionType: string
+  answerInteractionType: string
+  interactionConfig: Record<string, unknown>
   stemContext: string | null
   visualAssets: QuestionVisualAsset[]
   studentAnswer: string | null
+  structuredAnswer: AttemptStructuredAnswer | null
+  answerAssets: AttemptAnswerAsset[]
   isBlank: boolean
   awardedMarks: number | null
   maxMarks: number

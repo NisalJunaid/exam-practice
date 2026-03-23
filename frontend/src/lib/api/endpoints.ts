@@ -13,6 +13,7 @@ export const endpoints = {
       create: (paperId: string | number) => `/student/papers/${paperId}/attempts`,
       detail: (attemptId: string | number) => `/student/attempts/${attemptId}`,
       answers: (attemptId: string | number) => `/student/attempts/${attemptId}/answers`,
+      answerAssets: (attemptId: string | number) => `/student/attempts/${attemptId}/answer-assets`,
       submit: (attemptId: string | number) => `/student/attempts/${attemptId}/submit`,
       results: (attemptId: string | number) => `/student/attempts/${attemptId}/results`,
       review: (attemptId: string | number) => `/student/attempts/${attemptId}/review`,

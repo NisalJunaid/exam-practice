@@ -31,6 +31,8 @@ class PaperDetailResource extends JsonResource
                 'questionNumber' => $question->question_number,
                 'questionKey' => $question->question_key,
                 'questionType' => $question->question_type?->value ?? $question->question_type,
+                'answerInteractionType' => $question->answer_interaction_type?->value ?? $question->answer_interaction_type,
+                'interactionConfig' => $question->interaction_config ?? [],
                 'questionText' => $question->question_text,
                 'maxMarks' => $question->max_marks,
                 'orderIndex' => $question->order_index,

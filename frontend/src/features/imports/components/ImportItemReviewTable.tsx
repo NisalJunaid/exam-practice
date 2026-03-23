@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils/cn'
 
 import type { DocumentImportItem } from '../types'
-import { formatQuestionType, getQuestionPreview, getSourcePages } from '../utils'
+import { formatQuestionType, getQuestionPreview, getSourcePages, summarizeInteractionConfig } from '../utils'
 import { type EditableImportItem } from './ImportItemEditorDialog'
 import { ImportMatchStatusBadge } from './ImportMatchStatusBadge'
 
@@ -35,7 +35,8 @@ export function ImportItemReviewTable({ items, drafts, onEditItem, onUploadVisua
           <TableHeader>
             <TableRow>
               <TableHead>Question</TableHead>
-              <TableHead>Type</TableHead>
+              <TableHead>Academic type</TableHead>
+              <TableHead>Answer UI</TableHead>
               <TableHead>Preview</TableHead>
               <TableHead>Marks</TableHead>
               <TableHead>Status</TableHead>
@@ -58,6 +59,12 @@ export function ImportItemReviewTable({ items, drafts, onEditItem, onUploadVisua
                     </div>
                   </TableCell>
                   <TableCell className="text-sm text-slate-700">{formatQuestionType(draft?.questionType ?? item.questionType)}</TableCell>
+                  <TableCell>
+                    <div className="max-w-[220px] text-sm text-slate-700">
+                      <p className="font-medium">{formatQuestionType(draft?.answerInteractionType ?? item.answerInteractionType)}</p>
+                      <p className="text-xs text-slate-500">{summarizeInteractionConfig(item.interactionConfig)}</p>
+                    </div>
+                  </TableCell>
                   <TableCell className="max-w-sm text-sm text-slate-700">{getQuestionPreview(draft?.questionText ?? item.questionText)}</TableCell>
                   <TableCell>
                     <div className="text-sm text-slate-700">

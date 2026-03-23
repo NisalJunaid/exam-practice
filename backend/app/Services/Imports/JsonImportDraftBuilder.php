@@ -23,6 +23,8 @@ class JsonImportDraftBuilder
                     'parent_key' => $question['parent_key'],
                     'question_number' => $this->deriveQuestionNumber($question['question_key']),
                     'question_type' => $question['question_type'],
+                    'answer_interaction_type' => $question['answer_interaction_type'],
+                    'interaction_config' => $question['interaction_config'],
                     'stem_context' => $question['stem_context'],
                     'question_text' => $question['question_text'],
                     'reference_answer' => $question['reference_answer'],

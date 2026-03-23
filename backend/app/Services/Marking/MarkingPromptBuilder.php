@@ -10,6 +10,7 @@ class MarkingPromptBuilder
     public function build(PaperQuestion $question, ?AttemptAnswer $answer): array
     {
         $studentAnswer = trim((string) $answer?->student_answer);
+        $structuredAnswer = $answer?->structured_answer ?? [];
         $rubric = $question->rubric;
 
         $outputSchema = [
@@ -49,6 +50,7 @@ class MarkingPromptBuilder
             'answer' => [
                 'attempt_answer_id' => $answer?->id,
                 'student_answer' => $studentAnswer,
+                'structured_answer' => $structuredAnswer,
                 'is_blank' => $answer?->is_blank ?? ($studentAnswer === ''),
             ],
             'required_output_schema' => $outputSchema,

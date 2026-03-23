@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
-import type { DocumentImportItem, QuestionType, VisualReferenceType } from '../types'
-import { formatQuestionType, getSourcePages } from '../utils'
+import type { AnswerInteractionType, DocumentImportItem, QuestionType, VisualReferenceType } from '../types'
+import { formatQuestionType, getSourcePages, summarizeInteractionConfig } from '../utils'
 import { ImportMatchStatusBadge } from './ImportMatchStatusBadge'
 import { ImportVisualUploader } from './ImportVisualUploader'
 
@@ -19,6 +19,8 @@ export interface EditableImportItem {
   questionNumber: string
   parentKey: string
   questionType: QuestionType
+  answerInteractionType: AnswerInteractionType
+  interactionConfig: string
   stemContext: string
   questionText: string
   referenceAnswer: string
@@ -49,6 +51,7 @@ interface ImportItemEditorDialogProps {
 }
 
 const questionTypes: QuestionType[] = ['short_answer', 'structured', 'table', 'diagram_label', 'calculation', 'multiple_part', 'essay', 'other']
+const interactionTypes: AnswerInteractionType[] = ['short_text', 'long_text', 'select_single', 'select_multiple', 'multi_field', 'table_input', 'calculation_with_working', 'canvas_draw', 'graph_plot', 'image_upload', 'canvas_plus_text', 'diagram_annotation', 'matching', 'mcq_single', 'mcq_multiple', 'other']
 const visualTypes: Exclude<VisualReferenceType, null>[] = ['diagram', 'table', 'graph', 'chemical_structure', 'image', 'mixed']
 
 export function ImportItemEditorDialog({ item, draft, open, isSaving, isUploadingVisuals, isDeletingVisuals, onOpenChange, onSave, onUploadVisuals, onDeleteVisual }: ImportItemEditorDialogProps) {
@@ -95,6 +98,11 @@ export function ImportItemEditorDialog({ item, draft, open, isSaving, isUploadin
                 {questionTypes.map((type) => <option key={type} value={type}>{formatQuestionType(type)}</option>)}
               </select>
             </Field>
+            <Field label="Answer interaction type">
+              <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" value={localDraft.answerInteractionType} onChange={(event) => setLocalDraft({ ...localDraft, answerInteractionType: event.target.value as AnswerInteractionType })}>
+                {interactionTypes.map((type) => <option key={type} value={type}>{formatQuestionType(type)}</option>)}
+              </select>
+            </Field>
             <Field label="Max marks"><Input type="number" min={0} value={String(localDraft.resolvedMaxMarks)} onChange={(event) => setLocalDraft({ ...localDraft, resolvedMaxMarks: Number(event.target.value || 0) })} /></Field>
             <Field label="Question page"><Input type="number" min={0} value={localDraft.questionPageNumber ?? ''} onChange={(event) => setLocalDraft({ ...localDraft, questionPageNumber: event.target.value ? Number(event.target.value) : null })} /></Field>
             <Field label="Mark scheme page"><Input type="number" min={0} value={localDraft.markSchemePageNumber ?? ''} onChange={(event) => setLocalDraft({ ...localDraft, markSchemePageNumber: event.target.value ? Number(event.target.value) : null })} /></Field>
@@ -107,6 +115,11 @@ export function ImportItemEditorDialog({ item, draft, open, isSaving, isUploadin
             <Field label="Reference answer"><Textarea value={localDraft.referenceAnswer} onChange={(event) => setLocalDraft({ ...localDraft, referenceAnswer: event.target.value })} /></Field>
             <Field label="Marking guidelines"><Textarea value={localDraft.markingGuidelines} onChange={(event) => setLocalDraft({ ...localDraft, markingGuidelines: event.target.value })} /></Field>
           </div>
+
+          <Field label="Interaction config JSON">
+            <Textarea className="min-h-[12rem] font-mono text-xs" value={localDraft.interactionConfig} onChange={(event) => setLocalDraft({ ...localDraft, interactionConfig: event.target.value })} />
+          </Field>
+          <p className="text-xs text-slate-500">Current summary: {summarizeInteractionConfig(item.interactionConfig)}</p>
 
           <Field label="Sample full-mark answer"><Textarea value={localDraft.sampleFullMarkAnswer} onChange={(event) => setLocalDraft({ ...localDraft, sampleFullMarkAnswer: event.target.value })} /></Field>
 

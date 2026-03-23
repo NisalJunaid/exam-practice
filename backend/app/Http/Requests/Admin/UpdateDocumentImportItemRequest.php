@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Enums\AnswerInteractionType;
 use App\Enums\QuestionType;
 use App\Enums\VisualReferenceType;
+use App\Support\AnswerInteractions\AnswerInteractionSchema;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpdateDocumentImportItemRequest extends FormRequest
 {
@@ -21,6 +24,8 @@ class UpdateDocumentImportItemRequest extends FormRequest
             'question_number' => ['sometimes', 'nullable', 'string', 'max:255'],
             'parent_key' => ['sometimes', 'nullable', 'string', 'max:255'],
             'question_type' => ['required', Rule::in(array_column(QuestionType::cases(), 'value'))],
+            'answer_interaction_type' => ['required', Rule::in(array_column(AnswerInteractionType::cases(), 'value'))],
+            'interaction_config' => ['required', 'array'],
             'stem_context' => ['sometimes', 'nullable', 'string'],
             'question_text' => ['required', 'string'],
             'reference_answer' => ['nullable', 'string'],
@@ -39,5 +44,19 @@ class UpdateDocumentImportItemRequest extends FormRequest
             'admin_notes' => ['nullable', 'string'],
             'is_approved' => ['sometimes', 'boolean'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            app(AnswerInteractionSchema::class)->assertValidConfig(
+                (string) $this->input('answer_interaction_type'),
+                (array) $this->input('interaction_config', []),
+            );
+        });
     }
 }

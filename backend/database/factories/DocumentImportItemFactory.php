@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\ImportMatchStatus;
+use App\Enums\AnswerInteractionType;
 use App\Enums\QuestionType;
 use App\Enums\VisualReferenceType;
 use App\Models\DocumentImport;
@@ -24,6 +25,8 @@ class DocumentImportItemFactory extends Factory
             'parent_key' => null,
             'question_number' => (string) fake()->numberBetween(1, 12),
             'question_type' => fake()->randomElement(array_column(QuestionType::cases(), 'value')),
+            'answer_interaction_type' => fake()->randomElement(array_column(AnswerInteractionType::cases(), 'value')),
+            'interaction_config' => [],
             'stem_context' => fake()->optional()->sentence(),
             'question_text' => fake()->paragraph(),
             'reference_answer' => fake()->optional()->paragraph(),

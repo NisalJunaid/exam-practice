@@ -1,6 +1,7 @@
 export type ImportStatus = 'uploaded' | 'processing' | 'needs_review' | 'approved' | 'failed'
 export type ImportReviewStatus = 'ready' | 'needs_review' | 'missing_visual' | 'warning'
 export type QuestionType = 'short_answer' | 'structured' | 'table' | 'diagram_label' | 'calculation' | 'multiple_part' | 'essay' | 'other'
+export type AnswerInteractionType = 'short_text' | 'long_text' | 'select_single' | 'select_multiple' | 'multi_field' | 'table_input' | 'calculation_with_working' | 'canvas_draw' | 'graph_plot' | 'image_upload' | 'canvas_plus_text' | 'diagram_annotation' | 'matching' | 'mcq_single' | 'mcq_multiple' | 'other'
 export type VisualReferenceType = 'diagram' | 'table' | 'graph' | 'chemical_structure' | 'image' | 'mixed' | null
 
 export interface ImportItemVisualAsset {
@@ -37,6 +38,8 @@ export interface DocumentImportItem {
   parentKey: string | null
   questionNumber: string | null
   questionType: QuestionType
+  answerInteractionType: AnswerInteractionType
+  interactionConfig: Record<string, unknown>
   stemContext: string | null
   questionText: string | null
   referenceAnswer: string | null
@@ -67,6 +70,7 @@ export interface DocumentImportItem {
 export interface DocumentImportPreview {
   paper?: Record<string, unknown>
   questionTypes?: Partial<Record<QuestionType, number>>
+  interactionTypes?: Partial<Record<AnswerInteractionType, number>>
   counts?: ImportPreviewSummary
 }
 

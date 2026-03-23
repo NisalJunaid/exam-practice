@@ -5,18 +5,19 @@ import { useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { EmptyState } from '@/components/common/EmptyState'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
+import { createDraftFromQuestion, isQuestionAnswered, sanitizeStructuredAnswerForApi } from '@/features/attempts/answerInteractions'
 import { AttemptHeader } from '@/features/attempts/components/AttemptHeader'
 import { QuestionAnswerCard } from '@/features/attempts/components/QuestionAnswerCard'
 import { QuestionNavigator } from '@/features/attempts/components/QuestionNavigator'
 import { SubmitAttemptDialog } from '@/features/attempts/components/SubmitAttemptDialog'
-import { useAttemptDetail, useSaveAttemptAnswers, useSubmitAttempt } from '@/features/attempts/hooks'
-import type { AttemptDetail } from '@/features/attempts/types'
+import { useAttemptDetail, useSaveAttemptAnswers, useSubmitAttempt, useUploadAttemptAnswerAsset } from '@/features/attempts/hooks'
+import type { AttemptAnswerDraft, AttemptDetail } from '@/features/attempts/types'
 import { routes } from '@/lib/constants/routes'
 
 const AUTOSAVE_DELAY_MS = 1200
 
 function buildAnswerMap(attempt: AttemptDetail | undefined) {
-  return Object.fromEntries((attempt?.questions ?? []).map((question) => [question.id, question.studentAnswer ?? ''])) as Record<number, string>
+  return Object.fromEntries((attempt?.questions ?? []).map((question) => [question.id, createDraftFromQuestion(question)])) as Record<number, AttemptAnswerDraft>
 }
 
 function storageKey(attemptId: string) {
@@ -32,9 +33,10 @@ export function TakeAttemptPage() {
   const { attemptId = '' } = useParams()
   const attemptQuery = useAttemptDetail(attemptId)
   const saveMutation = useSaveAttemptAnswers(attemptId)
+  const uploadAssetMutation = useUploadAttemptAnswerAsset(attemptId)
   const submitMutation = useSubmitAttempt(attemptId)
 
-  const [localAnswers, setLocalAnswers] = useState<Record<number, string>>({})
+  const [localAnswers, setLocalAnswers] = useState<Record<number, AttemptAnswerDraft>>({})
   const [dirtyQuestionIds, setDirtyQuestionIds] = useState<number[]>([])
   const [currentQuestionId, setCurrentQuestionId] = useState<number | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
@@ -43,7 +45,7 @@ export function TakeAttemptPage() {
   const [autoSubmitting, setAutoSubmitting] = useState(false)
 
   const hydratedAttemptId = useRef<number | null>(null)
-  const latestAnswersRef = useRef<Record<number, string>>({})
+  const latestAnswersRef = useRef<Record<number, AttemptAnswerDraft>>({})
   const latestDirtyIdsRef = useRef<number[]>([])
 
   const attempt = attemptQuery.data
@@ -63,7 +65,7 @@ export function TakeAttemptPage() {
 
     const serverAnswers = buildAnswerMap(attempt)
     const persistedDraft = window.sessionStorage.getItem(storageKey(String(attempt.id)))
-    const persistedPayload = persistedDraft ? JSON.parse(persistedDraft) as { answers?: Record<number, string>; dirtyIds?: number[] } : null
+    const persistedPayload = persistedDraft ? JSON.parse(persistedDraft) as { answers?: Record<number, AttemptAnswerDraft>; dirtyIds?: number[] } : null
 
     if (hydratedAttemptId.current !== attempt.id) {
       hydratedAttemptId.current = attempt.id
@@ -79,7 +81,7 @@ export function TakeAttemptPage() {
       const next = { ...current }
       for (const question of attempt.questions) {
         if (!latestDirtyIdsRef.current.includes(question.id)) {
-          next[question.id] = question.studentAnswer ?? ''
+          next[question.id] = createDraftFromQuestion(question)
         }
       }
       return next
@@ -103,7 +105,8 @@ export function TakeAttemptPage() {
       await saveMutation.mutateAsync({
         answers: targetIds.map((questionId) => ({
           paper_question_id: questionId,
-          student_answer: latestAnswersRef.current[questionId] ?? '',
+          student_answer: latestAnswersRef.current[questionId]?.studentAnswer ?? '',
+          structured_answer: sanitizeStructuredAnswerForApi(latestAnswersRef.current[questionId]?.structuredAnswer),
         })),
       })
 
@@ -125,8 +128,6 @@ export function TakeAttemptPage() {
 
     return () => window.clearTimeout(timer)
   }, [dirtyQuestionIds, editable, persistAnswers])
-
-
 
   useEffect(() => {
     if (!attempt) return
@@ -156,7 +157,7 @@ export function TakeAttemptPage() {
   }, [blocker])
 
   const answeredCount = useMemo(
-    () => orderedQuestions.filter((question) => (localAnswers[question.id] ?? '').trim().length > 0).length,
+    () => orderedQuestions.filter((question) => isQuestionAnswered(question, localAnswers[question.id])).length,
     [localAnswers, orderedQuestions],
   )
 
@@ -166,7 +167,7 @@ export function TakeAttemptPage() {
       questionNumber: question.questionNumber,
       displayLabel: getNavigatorLabel(question, index),
       maxMarks: question.maxMarks,
-      answered: (localAnswers[question.id] ?? '').trim().length > 0,
+      answered: isQuestionAnswered(question, localAnswers[question.id]),
     })),
     [localAnswers, orderedQuestions],
   )
@@ -203,8 +204,8 @@ export function TakeAttemptPage() {
     return () => observer.disconnect()
   }, [orderedQuestions])
 
-  const handleAnswerChange = (questionId: number, value: string) => {
-    setLocalAnswers((current) => ({ ...current, [questionId]: value }))
+  const handleAnswerChange = (questionId: number, draft: AttemptAnswerDraft) => {
+    setLocalAnswers((current) => ({ ...current, [questionId]: draft }))
     setDirtyQuestionIds((current) => (current.includes(questionId) ? current : [...current, questionId]))
     setCurrentQuestionId(questionId)
     setSaveStatus('dirty')
@@ -214,6 +215,17 @@ export function TakeAttemptPage() {
     setCurrentQuestionId(questionId)
     const element = document.getElementById(`question-card-${questionId}`)
     element?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const handleUploadAsset = async (questionId: number, assetType: string, file: File, metadata?: Record<string, unknown>) => {
+    const formData = new FormData()
+    formData.append('paper_question_id', String(questionId))
+    formData.append('asset_type', assetType)
+    formData.append('file', file)
+    if (metadata) formData.append('metadata', JSON.stringify(metadata))
+    const asset = await uploadAssetMutation.mutateAsync(formData)
+    await attemptQuery.refetch()
+    return asset
   }
 
   const handleConfirmSubmit = async () => {
@@ -270,7 +282,7 @@ export function TakeAttemptPage() {
           onSubmit={() => setSubmitDialogOpen(true)}
           saveDisabled={saveMutation.isPending || !dirtyQuestionIds.length}
           saveStatus={editable ? saveStatus : 'saved'}
-          submitDisabled={submitMutation.isPending || saveMutation.isPending}
+          submitDisabled={submitMutation.isPending || saveMutation.isPending || uploadAssetMutation.isPending}
           onExpire={async () => {
             if (!attempt || !editable || autoSubmitting || submitMutation.isPending) return
             setAutoSubmitting(true)
@@ -307,17 +319,18 @@ export function TakeAttemptPage() {
             {orderedQuestions.map((question, index) => (
               <div className="scroll-mt-44" data-question-id={question.id} id={`question-card-${question.id}`} key={question.id}>
                 <QuestionAnswerCard
+                  draft={localAnswers[question.id] ?? createDraftFromQuestion(question)}
                   editable={Boolean(editable)}
                   index={index}
-                  isAnswered={(localAnswers[question.id] ?? '').trim().length > 0}
+                  isAnswered={isQuestionAnswered(question, localAnswers[question.id])}
                   isCurrent={question.id === activeQuestionId}
                   onChange={handleAnswerChange}
                   onFocus={setCurrentQuestionId}
                   onNext={index < orderedQuestions.length - 1 ? () => handleSelectQuestion(orderedQuestions[index + 1].id) : undefined}
                   onPrevious={index > 0 ? () => handleSelectQuestion(orderedQuestions[index - 1].id) : undefined}
+                  onUploadAsset={handleUploadAsset}
                   question={question}
                   totalQuestions={orderedQuestions.length}
-                  value={localAnswers[question.id] ?? ''}
                 />
               </div>
             ))}

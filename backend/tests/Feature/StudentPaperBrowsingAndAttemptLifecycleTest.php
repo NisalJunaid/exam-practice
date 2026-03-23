@@ -12,6 +12,8 @@ use App\Models\PaperAttempt;
 use App\Models\PaperQuestion;
 use App\Models\Subject;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -68,6 +70,12 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
             ->assertJsonMissingPath('data.questions.0.markingGuidelines');
     }
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Storage::fake('public');
+    }
+
     public function test_student_can_create_attempt_and_save_answers_as_drafts(): void
     {
         [$student, $paper] = $this->createStudentWithPublishedPaper();
@@ -80,6 +88,7 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
             ->assertJsonPath('data.status', PaperAttemptStatus::InProgress->value)
             ->assertJsonPath('data.totalMaxMarks', $paper->total_marks)
             ->assertJsonPath('data.questions.0.studentAnswer', null)
+            ->assertJsonPath('data.questions.0.answerInteractionType', 'calculation_with_working')
             ->assertJsonPath('data.questions.0.isBlank', true);
 
         $attemptId = $createResponse->json('data.id');
@@ -89,17 +98,50 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
             'answers' => [
                 [
                     'paper_question_id' => $questions[0]->id,
-                    'student_answer' => 'First draft answer',
+                    'student_answer' => '0.080 dm3',
+                    'structured_answer' => ['final_answer' => '0.080 dm3', 'working' => '25.0 cm3 = 0.025 dm3'],
                 ],
             ],
         ]);
 
         $saveResponse
             ->assertOk()
-            ->assertJsonPath('data.questions.0.studentAnswer', 'First draft answer')
+            ->assertJsonPath('data.questions.0.studentAnswer', "Final answer: 0.080 dm3\n\nWorking: 25.0 cm3 = 0.025 dm3")
+            ->assertJsonPath('data.questions.0.structuredAnswer.final_answer', '0.080 dm3')
             ->assertJsonPath('data.questions.0.isBlank', false)
             ->assertJsonPath('data.questions.1.studentAnswer', null)
             ->assertJsonPath('data.questions.1.isBlank', true);
+    }
+
+
+    public function test_student_can_upload_answer_assets_and_review_payload_contains_them(): void
+    {
+        [$student, $paper] = $this->createStudentWithPublishedPaper();
+        Sanctum::actingAs($student);
+
+        $attemptId = $this->postJson("/api/student/papers/{$paper->id}/attempts")->json('data.id');
+        $firstQuestion = $paper->questions()->orderBy('order_index')->firstOrFail();
+
+        $assetResponse = $this->post("/api/student/attempts/{$attemptId}/answer-assets", [
+            'paper_question_id' => $firstQuestion->id,
+            'asset_type' => 'drawing',
+            'file' => UploadedFile::fake()->image('working.png'),
+        ], ['Accept' => 'application/json']);
+
+        $assetResponse
+            ->assertCreated()
+            ->assertJsonPath('data.assetType', 'drawing');
+
+        $assetId = $assetResponse->json('data.id');
+
+        $this->putJson("/api/student/attempts/{$attemptId}/answers", [
+            'answers' => [[
+                'paper_question_id' => $firstQuestion->id,
+                'structured_answer' => ['drawing_asset_id' => $assetId, 'notes' => 'Graph sketch'],
+            ]],
+        ])->assertOk()
+            ->assertJsonPath('data.questions.0.answerAssets.0.id', $assetId)
+            ->assertJsonPath('data.questions.0.structuredAnswer.drawing_asset_id', $assetId);
     }
 
     public function test_student_can_submit_attempt_and_fetch_results_and_review_after_marking_completes(): void
@@ -113,7 +155,8 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
         $this->putJson("/api/student/attempts/{$attemptId}/answers", [
             'answers' => $questions->map(fn (PaperQuestion $question) => [
                 'paper_question_id' => $question->id,
-                'student_answer' => 'Carbon dioxide and water with chlorophyll.',
+                'student_answer' => 'Final answer: 0.080 dm3',
+                'structured_answer' => ['final_answer' => '0.080 dm3', 'working' => 'Method shown'],
             ])->all(),
         ])->assertOk();
 
@@ -122,7 +165,7 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', PaperAttemptStatus::Completed->value)
             ->assertJsonPath('data.result.status', PaperAttemptStatus::Completed->value)
-            ->assertJsonPath('data.result.questions.0.awardedMarks', 3);
+            ->assertJsonPath('data.result.questions.0.awardedMarks', 2);
 
         $resultsResponse = $this->getJson("/api/student/attempts/{$attemptId}/results");
         $resultsResponse
@@ -133,8 +176,8 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
         $reviewResponse = $this->getJson("/api/student/attempts/{$attemptId}/review");
         $reviewResponse
             ->assertOk()
-            ->assertJsonPath('data.review.questions.0.referenceAnswer', 'Carbon dioxide and water.')
-            ->assertJsonPath('data.review.questions.0.markingGuidelines', 'Mention both reactants.');
+            ->assertJsonPath('data.review.questions.0.referenceAnswer', '0.080 dm3')
+            ->assertJsonPath('data.review.questions.0.markingGuidelines', 'Award marks for correct final answer and clear working.');
     }
 
     public function test_results_and_review_enforce_attempt_ownership_and_completion_rules(): void
@@ -174,7 +217,7 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
                 'max_marks' => $question->max_marks,
                 'reasoning' => 'Matched the key points.',
                 'feedback' => 'Keep using precise terminology.',
-                'strengths' => ['Included the core reactants'],
+                'strengths' => ['Included the correct final answer'],
                 'mistakes' => [],
             ]);
         }
@@ -273,10 +316,13 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
         $firstQuestion = PaperQuestion::factory()->for($paper)->create([
             'question_number' => '1',
             'question_key' => '1(a)',
-            'question_text' => 'State the reactants needed for photosynthesis.',
-            'reference_answer' => 'Carbon dioxide and water.',
-            'marking_guidelines' => 'Mention both reactants.',
+            'question_text' => 'Calculate the concentration and show your working.',
+            'reference_answer' => '0.080 dm3',
+            'marking_guidelines' => 'Award marks for correct final answer and clear working.',
             'max_marks' => 3,
+            'question_type' => 'calculation',
+            'answer_interaction_type' => 'calculation_with_working',
+            'interaction_config' => ['final_answer_label' => 'Final Answer', 'working_label' => 'Working', 'allow_units' => true],
             'order_index' => 1,
             'has_visual' => $includeVisual,
             'requires_visual_reference' => $includeVisual,
@@ -298,8 +344,11 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
         PaperQuestion::factory()->for($paper)->create([
             'question_number' => '2',
             'question_key' => '1(b)',
-            'question_text' => 'Name the pigment that absorbs light.',
+            'question_text' => 'State the pigment that absorbs light.',
             'reference_answer' => 'Chlorophyll.',
+            'question_type' => 'short_answer',
+            'answer_interaction_type' => 'short_text',
+            'interaction_config' => [],
             'marking_guidelines' => 'Name chlorophyll.',
             'max_marks' => 2,
             'order_index' => 2,
