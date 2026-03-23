@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/common/EmptyState'
+import { QuestionVisualPanel } from '@/components/questions/QuestionVisualPanel'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -144,9 +145,11 @@ export function AdminEditPaperPage() {
                   <div>
                     <p className="font-medium text-slate-900">{question.questionText}</p>
                     <p className="mt-2 text-sm text-slate-600">{question.referenceAnswer}</p>
+                    {question.visualAssets?.length ? <div className="mt-4"><QuestionVisualPanel compact title="Attached visuals" visuals={question.visualAssets} /></div> : null}
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Badge>{question.maxMarks} marks</Badge>
                       <Badge className="bg-slate-100 text-slate-700">Rubric {question.rubric ? 'attached' : 'empty'}</Badge>
+                      {question.visualAssets?.length ? <Badge className="bg-blue-50 text-blue-700">{question.visualAssets.length} visuals</Badge> : null}
                     </div>
                   </div>
                   <div className="flex justify-end lg:justify-start">

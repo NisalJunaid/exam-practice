@@ -1,3 +1,5 @@
+import type { QuestionVisualAsset } from '@/components/questions/QuestionVisualPanel'
+
 export interface AdminPaperSubject {
   id: number
   name: string
@@ -36,6 +38,11 @@ export interface AdminQuestion {
   sampleFullMarkAnswer: string | null
   orderIndex: number
   stemContext: string | null
+  requiresVisualReference?: boolean
+  visualReferenceType?: string | null
+  visualReferenceNote?: string | null
+  hasVisual?: boolean
+  visualAssets: QuestionVisualAsset[]
   rubric?: AdminQuestionRubric | null
   paper?: AdminQuestionPaperSummary | null
   createdAt?: string | null
@@ -95,6 +102,7 @@ export interface AdminQuestionPayload {
   sample_full_mark_answer?: string | null
   order_index: number
   stem_context?: string | null
+  visual_assets?: Array<{ id: number; alt_text?: string | null; caption?: string | null; sort_order?: number; is_deleted?: boolean }>
   rubric?: AdminQuestionRubricPayload
 }
 

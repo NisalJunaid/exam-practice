@@ -1,8 +1,8 @@
 import { FilePlus2, FileSearch, LayoutDashboard, ScrollText } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 
+import { AttachedSidebar } from '@/components/layout/AttachedSidebar'
 import { routes } from '@/lib/constants/routes'
-import { cn } from '@/lib/utils/cn'
 
 const links = [
   { to: routes.admin.dashboard, label: 'Overview', icon: LayoutDashboard },
@@ -13,26 +13,8 @@ const links = [
 
 export function AdminShell() {
   return (
-    <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="h-fit rounded-2xl border bg-white p-3 shadow-sm">
-        <nav className="grid gap-1">
-          {links.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950',
-                  isActive && 'bg-slate-950 text-white hover:bg-slate-950 hover:text-white',
-                )
-              }
-            >
-              <Icon className="size-4" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
+    <div className="grid gap-6 lg:grid-cols-[auto_minmax(0,1fr)]">
+      <AttachedSidebar links={links} storageKey="admin-sidebar" subtitle="Admin workspace" title="Manage" />
       <section className="min-w-0">
         <Outlet />
       </section>

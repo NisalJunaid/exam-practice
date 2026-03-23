@@ -1,3 +1,5 @@
+import type { QuestionVisualAsset } from '@/components/questions/QuestionVisualPanel'
+
 export type AttemptStatus = 'in_progress' | 'submitted' | 'marking' | 'completed' | 'failed'
 
 export interface AttemptQuestion {
@@ -7,6 +9,11 @@ export interface AttemptQuestion {
   questionText: string
   stemContext: string | null
   maxMarks: number
+  requiresVisualReference: boolean
+  visualReferenceType: string | null
+  visualReferenceNote: string | null
+  hasVisual: boolean
+  visualAssets: QuestionVisualAsset[]
   studentAnswer: string | null
   isBlank: boolean
   submittedAt: string | null
@@ -18,6 +25,9 @@ export interface AttemptDetail {
   startedAt: string | null
   submittedAt: string | null
   completedAt: string | null
+  deadlineAt: string | null
+  remainingSeconds: number | null
+  isTimedOut: boolean
   totalAwardedMarks: number | null
   totalMaxMarks: number
   markingSummary: string | null
@@ -26,6 +36,7 @@ export interface AttemptDetail {
     title: string
     subject: string
     paperCode: string | null
+    durationMinutes: number | null
   }
   questions: AttemptQuestion[]
 }

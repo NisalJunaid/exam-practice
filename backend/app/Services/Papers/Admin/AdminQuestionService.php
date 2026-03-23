@@ -11,10 +11,13 @@ use Illuminate\Validation\ValidationException;
 
 class AdminQuestionService
 {
+    public function __construct(private readonly QuestionVisualAssetSyncService $visualAssetSyncService) {}
+
     public function create(Paper $paper, array $attributes): PaperQuestion
     {
         return DB::transaction(function () use ($paper, $attributes): PaperQuestion {
             $rubricAttributes = Arr::pull($attributes, 'rubric');
+            Arr::pull($attributes, 'visual_assets');
             $payload = $this->prepareQuestionPayload($paper, $attributes);
 
             $question = $paper->questions()->create($payload);
@@ -38,12 +41,17 @@ class AdminQuestionService
     {
         return DB::transaction(function () use ($question, $attributes): PaperQuestion {
             $rubricAttributes = Arr::pull($attributes, 'rubric');
+            $visualAssets = Arr::pull($attributes, 'visual_assets', []);
             $payload = $this->prepareQuestionPayload($question->paper, $attributes, $question);
 
             $question->update($payload);
 
             if (is_array($rubricAttributes)) {
                 $this->upsertRubric($question, $rubricAttributes);
+            }
+
+            if (is_array($visualAssets) && $visualAssets !== []) {
+                $this->visualAssetSyncService->sync($question, $visualAssets);
             }
 
             $this->syncPaperTotals($question->paper);
