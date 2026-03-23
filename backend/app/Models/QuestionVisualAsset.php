@@ -19,6 +19,8 @@ class QuestionVisualAsset extends Model
         'disk',
         'file_path',
         'original_name',
+        'alt_text',
+        'caption',
         'mime_type',
         'sort_order',
     ];

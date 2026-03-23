@@ -2,6 +2,7 @@
 
 namespace App\Services\Attempts;
 
+use App\Http\Resources\QuestionVisualAssetResource;
 use App\Models\PaperAttempt;
 
 class AttemptReviewBuilder
@@ -41,6 +42,7 @@ class AttemptReviewBuilder
                     'questionKey' => $question->question_key,
                     'questionText' => $question->question_text,
                     'stemContext' => $question->stem_context,
+                    'visualAssets' => QuestionVisualAssetResource::collection($question->visualAssets)->resolve(),
                     'studentAnswer' => $answer?->student_answer,
                     'isBlank' => $answer?->is_blank ?? true,
                     'awardedMarks' => $marking?->awarded_marks,

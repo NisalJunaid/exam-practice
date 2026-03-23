@@ -15,6 +15,8 @@ class QuestionVisualAssetResource extends JsonResource
             'disk' => $this->disk,
             'filePath' => $this->file_path,
             'originalName' => $this->original_name,
+            'altText' => $this->alt_text,
+            'caption' => $this->caption,
             'mimeType' => $this->mime_type,
             'sortOrder' => $this->sort_order,
             'url' => $this->url,

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 class PaperAttempt extends Model
 {
@@ -56,6 +57,33 @@ class PaperAttempt extends Model
     public function aiLogs(): HasMany
     {
         return $this->hasMany(AiMarkingLog::class);
+    }
+
+    public function deadlineAt(): ?Carbon
+    {
+        if (! $this->started_at || ! $this->paper?->duration_minutes) {
+            return null;
+        }
+
+        return $this->started_at->copy()->addMinutes((int) $this->paper->duration_minutes);
+    }
+
+    public function remainingSeconds(?Carbon $reference = null): ?int
+    {
+        $deadline = $this->deadlineAt();
+
+        if (! $deadline) {
+            return null;
+        }
+
+        return max(0, ($reference ?? now())->diffInSeconds($deadline, false));
+    }
+
+    public function hasTimedOut(?Carbon $reference = null): bool
+    {
+        $remainingSeconds = $this->remainingSeconds($reference);
+
+        return $remainingSeconds !== null && $remainingSeconds <= 0;
     }
 
     public function isSubmittable(): bool

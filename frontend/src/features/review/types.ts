@@ -1,3 +1,4 @@
+import type { QuestionVisualAsset } from '@/components/questions/QuestionVisualPanel'
 import type { AttemptDetail, AttemptStatus } from '@/features/attempts/types'
 
 export interface AttemptResultQuestion {
@@ -26,6 +27,7 @@ export interface AttemptReviewQuestion {
   questionKey: string | null
   questionText: string
   stemContext: string | null
+  visualAssets: QuestionVisualAsset[]
   studentAnswer: string | null
   isBlank: boolean
   awardedMarks: number | null

@@ -8,6 +8,8 @@ export function useAttemptDetail(attemptId: string) {
     queryKey: queryKeys.attempts.detail(attemptId),
     queryFn: () => attemptsApi.detail(attemptId),
     enabled: Boolean(attemptId),
+    refetchOnWindowFocus: false,
+    staleTime: 10_000,
     refetchInterval: (query) => {
       const status = query.state.data?.status
       return status === 'submitted' || status === 'marking' ? 5000 : false

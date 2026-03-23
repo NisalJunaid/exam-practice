@@ -176,6 +176,50 @@ class AdminPaperQuestionCrudTest extends TestCase
         $this->assertDatabaseHas('papers', ['id' => $paper->id, 'total_marks' => 0]);
     }
 
+
+
+    public function test_admin_question_payload_includes_visual_assets_and_can_update_their_metadata(): void
+    {
+        $paper = Paper::factory()->for(Subject::factory())->create(['total_marks' => 4]);
+        $question = PaperQuestion::factory()->for($paper)->create([
+            'question_number' => '1',
+            'question_key' => '1(a)',
+            'max_marks' => 4,
+            'order_index' => 1,
+            'has_visual' => true,
+            'requires_visual_reference' => true,
+            'visual_reference_type' => 'diagram',
+        ]);
+        $asset = $question->visualAssets()->create([
+            'asset_role' => 'diagram',
+            'disk' => 'public',
+            'file_path' => 'question-visuals/current.png',
+            'original_name' => 'current.png',
+            'alt_text' => 'Original alt',
+            'caption' => null,
+            'mime_type' => 'image/png',
+            'sort_order' => 1,
+        ]);
+
+        $this->getJson("/api/admin/questions/{$question->id}")
+            ->assertOk()
+            ->assertJsonPath('data.visualAssets.0.altText', 'Original alt');
+
+        $this->putJson("/api/admin/questions/{$question->id}", [
+            'question_text' => 'Updated wording with diagram.',
+            'max_marks' => 4,
+            'order_index' => 1,
+            'visual_assets' => [[
+                'id' => $asset->id,
+                'alt_text' => 'Updated diagram alt text',
+                'caption' => 'Updated caption',
+                'sort_order' => 1,
+            ]],
+        ])->assertOk()
+            ->assertJsonPath('data.visualAssets.0.altText', 'Updated diagram alt text')
+            ->assertJsonPath('data.visualAssets.0.caption', 'Updated caption');
+    }
+
     public function test_admin_validation_and_safe_delete_guards_block_invalid_changes(): void
     {
         $student = User::factory()->create(['role' => UserRole::Student]);

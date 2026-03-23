@@ -39,13 +39,17 @@ class AttemptService
 
     public function getAttempt(PaperAttempt $attempt): PaperAttempt
     {
-        return $attempt->load(['paper.subject.examBoard', 'paper.subject.examLevel', 'paper.questions', 'answers', 'markings']);
+        $attempt = $this->synchronizeTimeoutState($attempt);
+
+        return $this->loadAttempt($attempt);
     }
 
     public function saveAnswers(PaperAttempt $attempt, array $answers): PaperAttempt
     {
+        $attempt = $this->synchronizeTimeoutState($attempt);
+
         if ($attempt->status !== PaperAttemptStatus::InProgress) {
-            throw new RuntimeException('Only in-progress attempts can be edited.');
+            throw new RuntimeException($attempt->hasTimedOut() ? 'Time has expired. Your attempt was submitted automatically.' : 'Only in-progress attempts can be edited.');
         }
 
         DB::transaction(function () use ($attempt, $answers) {
@@ -69,27 +73,30 @@ class AttemptService
         return $this->getAttempt($attempt);
     }
 
-    public function submitAttempt(PaperAttempt $attempt): PaperAttempt
+    public function submitAttempt(PaperAttempt $attempt, bool $force = false): PaperAttempt
     {
-        if (! $attempt->isSubmittable()) {
-            throw new RuntimeException('This attempt cannot be submitted.');
-        }
+        $submittedAttempt = DB::transaction(function () use ($attempt, $force): PaperAttempt {
+            $lockedAttempt = PaperAttempt::query()
+                ->whereKey($attempt->id)
+                ->lockForUpdate()
+                ->with('paper')
+                ->firstOrFail();
 
-        $submittedAt = Carbon::now();
+            if ($lockedAttempt->status !== PaperAttemptStatus::InProgress) {
+                return $lockedAttempt;
+            }
 
-        $attempt->update([
-            'status' => PaperAttemptStatus::Submitted,
-            'submitted_at' => $submittedAt,
-            'completed_at' => null,
-            'total_awarded_marks' => null,
-            'marking_summary' => 'Attempt submitted. AI marking has been queued.',
-        ]);
+            if ($force || $lockedAttempt->hasTimedOut()) {
+                return $this->transitionToSubmitted(
+                    $lockedAttempt,
+                    summary: 'Time expired. The attempt was submitted automatically and AI marking has been queued.',
+                );
+            }
 
-        $attempt->answers()->update(['submitted_at' => $submittedAt]);
+            return $this->transitionToSubmitted($lockedAttempt);
+        });
 
-        MarkPaperAttemptJob::dispatch($attempt->id);
-
-        return $this->getAttempt($attempt->fresh());
+        return $this->getAttempt($submittedAttempt->fresh());
     }
 
     public function ensureResultsAvailable(PaperAttempt $attempt): void
@@ -104,5 +111,40 @@ class AttemptService
         if ($attempt->status !== PaperAttemptStatus::Completed) {
             throw new RuntimeException('Review is only available after marking has completed successfully.');
         }
+    }
+
+    private function synchronizeTimeoutState(PaperAttempt $attempt): PaperAttempt
+    {
+        $attempt->loadMissing('paper');
+
+        if ($attempt->status === PaperAttemptStatus::InProgress && $attempt->hasTimedOut()) {
+            return $this->submitAttempt($attempt, force: true);
+        }
+
+        return $attempt;
+    }
+
+    private function transitionToSubmitted(PaperAttempt $attempt, ?Carbon $submittedAt = null, ?string $summary = null): PaperAttempt
+    {
+        $submittedAt ??= Carbon::now();
+
+        $attempt->update([
+            'status' => PaperAttemptStatus::Submitted,
+            'submitted_at' => $submittedAt,
+            'completed_at' => null,
+            'total_awarded_marks' => null,
+            'marking_summary' => $summary ?? 'Attempt submitted. AI marking has been queued.',
+        ]);
+
+        $attempt->answers()->update(['submitted_at' => $submittedAt]);
+
+        MarkPaperAttemptJob::dispatch($attempt->id);
+
+        return $attempt;
+    }
+
+    private function loadAttempt(PaperAttempt $attempt): PaperAttempt
+    {
+        return $attempt->load(['paper.subject.examBoard', 'paper.subject.examLevel', 'paper.questions.visualAssets', 'answers', 'markings']);
     }
 }

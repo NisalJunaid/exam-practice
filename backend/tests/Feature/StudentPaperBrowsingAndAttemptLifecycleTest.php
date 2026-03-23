@@ -192,7 +192,65 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
         $this->getJson("/api/student/attempts/{$completedAttempt->id}/review")->assertForbidden();
     }
 
-    private function createStudentWithPublishedPaper(): array
+
+
+    public function test_attempt_payload_includes_question_visuals(): void
+    {
+        [$student, $paper] = $this->createStudentWithPublishedPaper(includeVisual: true);
+        Sanctum::actingAs($student);
+
+        $response = $this->postJson("/api/student/papers/{$paper->id}/attempts");
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.questions.0.visualAssets.0.assetRole', 'diagram')
+            ->assertJsonPath('data.questions.0.visualAssets.0.altText', 'Leaf diagram');
+    }
+
+    public function test_expired_attempt_is_auto_submitted_when_student_returns(): void
+    {
+        [$student, $paper] = $this->createStudentWithPublishedPaper();
+        Sanctum::actingAs($student);
+
+        $attempt = PaperAttempt::factory()->for($student)->for($paper)->create([
+            'status' => PaperAttemptStatus::InProgress,
+            'started_at' => now()->subMinutes(80),
+            'submitted_at' => null,
+            'completed_at' => null,
+            'total_max_marks' => $paper->total_marks,
+        ]);
+        $this->seedAttemptAnswers($attempt, $paper);
+
+        $response = $this->getJson("/api/student/attempts/{$attempt->id}");
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.status', PaperAttemptStatus::Completed->value)
+            ->assertJsonPath('data.markingSummary', 'Marked automatically. Score: 0/5.');
+    }
+
+    public function test_manual_submit_near_timeout_returns_existing_submitted_attempt_without_race_failure(): void
+    {
+        [$student, $paper] = $this->createStudentWithPublishedPaper();
+        Sanctum::actingAs($student);
+
+        $attempt = PaperAttempt::factory()->for($student)->for($paper)->create([
+            'status' => PaperAttemptStatus::InProgress,
+            'started_at' => now()->subMinutes(75),
+            'submitted_at' => null,
+            'completed_at' => null,
+            'total_max_marks' => $paper->total_marks,
+        ]);
+        $this->seedAttemptAnswers($attempt, $paper);
+
+        $firstResponse = $this->postJson("/api/student/attempts/{$attempt->id}/submit");
+        $secondResponse = $this->postJson("/api/student/attempts/{$attempt->id}/submit");
+
+        $firstResponse->assertOk()->assertJsonPath('data.status', PaperAttemptStatus::Completed->value);
+        $secondResponse->assertOk()->assertJsonPath('data.status', PaperAttemptStatus::Completed->value);
+    }
+
+    private function createStudentWithPublishedPaper(bool $includeVisual = false): array
     {
         $student = User::factory()->create(['role' => UserRole::Student]);
         $examBoard = ExamBoard::factory()->create(['name' => 'Cambridge']);
@@ -212,7 +270,7 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
             'is_published' => true,
         ]);
 
-        PaperQuestion::factory()->for($paper)->create([
+        $firstQuestion = PaperQuestion::factory()->for($paper)->create([
             'question_number' => '1',
             'question_key' => '1(a)',
             'question_text' => 'State the reactants needed for photosynthesis.',
@@ -220,7 +278,23 @@ class StudentPaperBrowsingAndAttemptLifecycleTest extends TestCase
             'marking_guidelines' => 'Mention both reactants.',
             'max_marks' => 3,
             'order_index' => 1,
+            'has_visual' => $includeVisual,
+            'requires_visual_reference' => $includeVisual,
+            'visual_reference_type' => $includeVisual ? 'diagram' : null,
         ]);
+
+        if ($includeVisual) {
+            $firstQuestion->visualAssets()->create([
+                'asset_role' => 'diagram',
+                'disk' => 'public',
+                'file_path' => 'question-visuals/leaf-diagram.png',
+                'original_name' => 'leaf-diagram.png',
+                'alt_text' => 'Leaf diagram',
+                'caption' => 'Reference diagram for labelling.',
+                'mime_type' => 'image/png',
+                'sort_order' => 1,
+            ]);
+        }
         PaperQuestion::factory()->for($paper)->create([
             'question_number' => '2',
             'question_key' => '1(b)',

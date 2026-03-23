@@ -173,6 +173,7 @@ class AdminImportApprovalTest extends TestCase
             'paper_question_id' => $visualQuestion->id,
             'document_import_item_id' => $visualItem->id,
             'asset_role' => 'diagram',
+            'alt_text' => 'cell-diagram',
         ]);
         $this->assertDatabaseHas('question_rubrics', [
             'paper_question_id' => $visualQuestion->id,

@@ -28,6 +28,8 @@ class ImportVisualAssetService
                 'disk' => $disk,
                 'file_path' => $path,
                 'original_name' => $file->getClientOriginalName(),
+                'alt_text' => pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
+                'caption' => null,
                 'mime_type' => $file->getMimeType(),
                 'sort_order' => $startingOrder + $index + 1,
             ]);
@@ -72,6 +74,8 @@ class ImportVisualAssetService
                 'disk' => $asset->disk,
                 'file_path' => $asset->file_path,
                 'original_name' => $asset->original_name,
+                'alt_text' => $asset->alt_text,
+                'caption' => $asset->caption,
                 'mime_type' => $asset->mime_type,
                 'sort_order' => $asset->sort_order,
             ]);
